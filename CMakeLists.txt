@@ -5,12 +5,12 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 project(cwire LANGUAGES C VERSION 0.1.0)
 
 add_library(cwire SHARED
+    src/common.c
+    src/bio.c
     # URL
     src/url.c
-    # DNS
-
     # SOCKET
-
+    src/socket.c
     # TLS
 )
 
@@ -49,4 +49,4 @@ add_executable(cwire-demo
     src/demo.c
 )
 
-target_link_libraries(cwire-demo imp)
+target_link_libraries(cwire-demo cwire)
