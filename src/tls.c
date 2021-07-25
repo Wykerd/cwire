@@ -1,12 +1,10 @@
 #include <cwire/tls.h>
 
-#define SSL_IO_BUF_SIZE 1024
-
 #include <cwire/no_malloc.h>
 
 static int cwr__tls_flush_wbio (cwr_tls_t *tls)
 {
-    char buf[SSL_IO_BUF_SIZE];
+    char buf[CWR_SSL_IO_BUF_SIZE];
     int r = 0,
         wr = 0;
     do
@@ -87,7 +85,7 @@ int cwr__tls_handshake(cwr_tls_t *tls)
 int cwr_tls_reader(cwr_sock_t *sock, const void *dat, size_t nbytes)
 {
     cwr_tls_t *tls = sock->io.child;
-    char buf[SSL_IO_BUF_SIZE];
+    char buf[CWR_SSL_IO_BUF_SIZE];
     int r = 0,
         status;
     size_t len = nbytes;
@@ -184,7 +182,7 @@ static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls
     tls->sock->io.reader = cwr_tls_reader;
     tls->sock->io.child = tls;
 
-    if (!cwr_buf_malloc(&tls->enc_buf, tls->m_ctx, SSL_IO_BUF_SIZE))
+    if (!cwr_buf_malloc(&tls->enc_buf, tls->m_ctx, CWR_SSL_IO_BUF_SIZE))
     {
         tls->io.err_type = CWR_E_INTERNAL;
         tls->io.err_code = CWR_E_INTERNAL_OOM;
@@ -206,17 +204,25 @@ unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tl
 
 unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls)
 {
-    // TODO: prefered ciphers & errors
     unsigned long r;
     r = cwr_sec_ctx_init(&tls->sec_ctx, m_ctx, TLS_method(), 0, 0);
     if (r)
     {
+ssl_err:
         tls->io.err_type = CWR_E_SSL_ERR;
         tls->io.err_code = r;
         return r;
     }
-    r = cwr_sec_ctx_set_ciphers(&tls->sec_ctx, "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4");
+    r = cwr_sec_ctx_set_cipher_suites(&tls->sec_ctx, CWR_SSL_DEFAULT_CIPHER_SUITES);
+    if (r)
+        goto ssl_err;
+    r = cwr_sec_ctx_set_ciphers(&tls->sec_ctx, CWR_SSL_DEFAULT_CIPHER_LISTS);
+    if (r)
+        goto ssl_err;
     r = cwr_sec_ctx_add_root_certs(&tls->sec_ctx);
+    if (r)
+        goto ssl_err;
+    
 
     if (cwr__tls_init_intr(m_ctx, sock, tls))
         return 1;
