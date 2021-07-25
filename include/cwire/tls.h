@@ -17,26 +17,24 @@ DEF_CWR_LINK_CLS(tls_link, cwr_tls_t);
 typedef void (*cwr_tls_cb)(cwr_tls_t *);
 
 struct cwr_tls_s {
-    void *data;
+    void *data; /* Opaque data */
     cwr_tls_link_t io; /* IO functions */
     cwr_malloc_ctx_t *m_ctx; /* Memory context */
-    uv_loop_t *loop; /* Event loop used */
     cwr_tls_cb on_close; /* SSL has closed */
 
-    cwr_sock_t *sock;
-    cwr_secure_ctx_t sec_ctx;
-    SSL *ssl;
-
-    /* Queue of unencrypted write data */
-    cwr_buf_t enc_buf;
+    cwr_linkable_t *sock; /* Underlying tcp socket */
+    cwr_secure_ctx_t sec_ctx; /* SSL secure context */
+    SSL *ssl; /* SSL state machine */
 
     BIO *rbio; /* SSL read buffer */
     BIO *wbio; /* SSL write buffer */
+    cwr_buf_t enc_buf; /* Queue of unencrypted write data */
 };
 
+int cwr_tls_reader (cwr_linkable_t *sock, const void *dat, size_t nbytes);
 int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len);
-unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx);
-unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls);
+unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx);
+unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls);
 int cwr_tls_write (cwr_tls_t *tls, const void *buf, size_t len);
 int cwr_tls_connect (cwr_tls_t *tls);
 int cwr_tls_shutdown (cwr_tls_t *tls);

@@ -85,7 +85,7 @@ int cwr__tls_handshake(cwr_tls_t *tls)
     return !((status == 0) || (status == SSL_ERROR_WANT_WRITE) || (status == SSL_ERROR_WANT_READ));
 }
 
-int cwr_tls_reader(cwr_sock_t *sock, const void *dat, size_t nbytes)
+int cwr_tls_reader (cwr_linkable_t *sock, const void *dat, size_t nbytes)
 {
     cwr_tls_t *tls = sock->io.child;
     char buf[CWR_SSL_IO_BUF_SIZE];
@@ -173,7 +173,7 @@ int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len)
     return tls->sock->io.writer(tls->sock, buf, len);
 }
 
-static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls)
+static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls)
 {
     tls->m_ctx = m_ctx;
 
@@ -201,13 +201,13 @@ static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls
     SSL_set_bio(tls->ssl, tls->rbio, tls->wbio);
 }
 
-unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx)
+unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx)
 {
     tls->sec_ctx = *sec_ctx;
     return cwr__tls_init_intr(m_ctx, sock, tls);
 }
 
-unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls)
+unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls)
 {
     unsigned long r;
     r = cwr_sec_ctx_init(&tls->sec_ctx, m_ctx, TLS_method(), 0, 0);
