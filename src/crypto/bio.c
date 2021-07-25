@@ -1,4 +1,4 @@
-#include <cwire/bio.h>
+#include <cwire/crypto/bio.h>
 #include <string.h>
 
 #define malloc(s) malloc_is_forbidden(s)

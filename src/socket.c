@@ -70,6 +70,7 @@ int cwr_sock_init (cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock)
     sock->h_tcp.data = sock;
 
     sock->on_connect = NULL;
+    sock->on_close = NULL;
     sock->io.reader = NULL;
     sock->io.on_write = NULL;
     sock->io.on_read = NULL;
@@ -299,9 +300,23 @@ static void cwr__sock_read_cb (uv_stream_t *handle, ssize_t nread, const uv_buf_
 
     if (nread > 0)
     {
-        sock->io.reader(sock, buf->base, nread);
+        int r = sock->io.reader(sock, buf->base, nread);
+        if (r)
+        {
+            if (sock->io.on_error)
+                sock->io.on_error(sock);
+            goto exit;
+        }
         if (sock->io.on_read)
-            sock->io.on_read(sock, buf->base, nread);
+        {
+            r = sock->io.on_read(sock, buf->base, nread);
+            if (r)
+            {
+                if (sock->io.on_error)
+                    sock->io.on_error(sock);
+                goto exit;
+            }
+        }
     } 
     else 
     {
@@ -312,7 +327,7 @@ static void cwr__sock_read_cb (uv_stream_t *handle, ssize_t nread, const uv_buf_
         if (sock->io.on_error)
             sock->io.on_error(sock);
     }
-
+exit:
     cwr_free(sock->m_ctx, buf->base);
 }
 

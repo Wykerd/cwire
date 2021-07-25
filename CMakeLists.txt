@@ -6,12 +6,14 @@ project(cwire LANGUAGES C VERSION 0.1.0)
 
 add_library(cwire SHARED
     src/common.c
-    src/bio.c
     # URL
     src/url.c
     # SOCKET
     src/socket.c
     # TLS
+    src/crypto/bio.c
+    src/crypto/context.c
+    src/tls.c
 )
 
 set_target_properties(cwire PROPERTIES

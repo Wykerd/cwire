@@ -2,10 +2,6 @@
 #define CWR_SOCKET_H
 
 #include "./common.h"
-#include <openssl/err.h>
-#include <openssl/ssl.h>
-#include <openssl/conf.h>
-#include <openssl/engine.h>
 
 typedef struct cwr_sock_s cwr_sock_t;
 
@@ -14,13 +10,13 @@ DEF_CWR_LINK_CLS(sock_link, cwr_sock_t);
 typedef void (*cwr_sock_cb)(cwr_sock_t *);
 
 struct cwr_sock_s {
+    void *data;
     cwr_sock_link_t io; /* IO functions */
     cwr_malloc_ctx_t *m_ctx; /* Memory context */
     uv_loop_t *loop; /* Event loop used */
     cwr_sock_cb on_connect; /* Called once connected */
     cwr_sock_cb on_close; /* TCP close reset */
     uv_tcp_t h_tcp; /* UV TCP handle */
-    void *data;
 };
 
 int cwr_sock_init (cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock);

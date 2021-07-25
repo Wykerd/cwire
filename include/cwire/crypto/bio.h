@@ -1,6 +1,6 @@
 #ifndef CWR_CRYPTO_BIO_H
 #define CWR_CRYPTO_BIO_H
-#include "./common.h"
+#include "../common.h"
 #include <openssl/err.h>
 #include <openssl/bio.h>
 

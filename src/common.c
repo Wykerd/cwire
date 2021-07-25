@@ -176,3 +176,50 @@ void *cwr_mallocz (cwr_malloc_ctx_t *ctx, size_t size)
         return NULL;
     return memset(ptr, 0, size);
 }
+
+void *cwr_buf_malloc (cwr_buf_t *buf, cwr_malloc_ctx_t *ctx, size_t initial_size)
+{
+    buf->m_ctx = ctx;
+    buf->base = cwr_malloc(ctx, initial_size);
+    buf->len = 0;
+    buf->size = initial_size;
+    return buf->base;
+}
+
+void *cwr_buf_resize (cwr_buf_t *buf, size_t size)
+{
+    buf->base = cwr_realloc(buf->m_ctx, buf->base, size);
+    buf->size = size;
+    if (buf->len > buf->size)
+        buf->len = buf->size;
+    return buf->base;
+}
+
+void *cwr_buf_push_back (cwr_buf_t *buf, char *src, size_t len)
+{
+
+    if (buf->size < (buf->len + len))
+        if (!cwr_buf_resize(buf, buf->len + len))
+            return NULL;
+        
+    char *sp = buf->base + buf->len;
+
+    memcpy(sp, src, len);
+    buf->len += len;
+
+    return sp; 
+}
+
+void cwr_buf_shift (cwr_buf_t *buf, size_t len)
+{
+    memmove(buf->base, buf->base+len, buf->len-len);
+    buf->len -= len;
+}
+
+void cwr_buf_free (cwr_buf_t *buf)
+{
+    cwr_free(buf->m_ctx, buf->base);
+    buf->base = NULL;
+    buf->size = 0;
+    buf->len = 0;
+}
