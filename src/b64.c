@@ -5,7 +5,6 @@
 
 #include <cwire/common.h>
 #include <cwire/b64.h>
-#include <math.h>
 #include <assert.h>
 #include <cwire/no_malloc.h>
 

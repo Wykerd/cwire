@@ -30,7 +30,8 @@ static inline const char* base64_select_table (cwr_b64_mode mode) {
 
 // Use CWR_B64_MODE_NORMAL as mode default
 static inline const size_t base64_encoded_size (size_t size, cwr_b64_mode mode) {
-    return mode == CWR_B64_MODE_NORMAL ? ((size + 2) / 3 * 4) : ceil((size * 4.0) / 3.0);
+    // return mode == CWR_B64_MODE_NORMAL ? ((size + 2) / 3 * 4) : ceil((size * 4.0) / 3.0);
+    return ((size + 2) / 3 * 4);
 }
 
 // Doesn't check for padding at the end.  Can be 1-2 bytes over.

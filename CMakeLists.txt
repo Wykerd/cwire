@@ -7,6 +7,7 @@ project(cwire LANGUAGES C VERSION 0.1.0)
 add_library(cwire SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/net.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/b64.c
     # llhttp
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/src/api.c
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/src/http.c
