@@ -17,6 +17,7 @@ struct cwr_tls_s {
     cwr_tls_link_t io; /* IO functions */
     cwr_malloc_ctx_t *m_ctx; /* Memory context */
     uv_loop_t *loop; /* Event loop used */
+    cwr_tls_cb on_close; /* SSL has closed */
 
     cwr_sock_t *sock;
     cwr_secure_ctx_t sec_ctx;
@@ -33,7 +34,8 @@ int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len);
 unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx);
 unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls);
 int cwr_tls_write (cwr_tls_t *tls, const void *buf, size_t len);
-int cwr_tls_connect (cwr_tls_t *tls); 
+int cwr_tls_connect (cwr_tls_t *tls);
+int cwr_tls_shutdown (cwr_tls_t *tls);
 /**
  * Notice: This method doesn't free the secure context, as it is reusable,
  * If you're not going to use it further you MUST call `cwr_sec_ctx_free`
