@@ -215,7 +215,6 @@ static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls
     }
 
     tls->ssl = SSL_new(tls->sec_ctx.ssl_ctx);
-    SSL_set_connect_state(tls->ssl);
 
     tls->rbio = cwr_crypto_bio_new(tls->m_ctx);
     tls->wbio = cwr_crypto_bio_new(tls->m_ctx);
@@ -232,7 +231,7 @@ unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t
 {
     // TODO: prefered ciphers & errors
     unsigned long r;
-    r = cwr_sec_ctx_init(&tls->sec_ctx, m_ctx, TLS_client_method(), 0, 0);
+    r = cwr_sec_ctx_init(&tls->sec_ctx, m_ctx, TLS_method(), 0, 0);
     if (r)
     {
         tls->io.err_type = CWR_E_SSL_ERR;
@@ -260,6 +259,7 @@ int cwr_tls_write(cwr_tls_t *tls, const void *buf, size_t len)
 
 int cwr_tls_connect(cwr_tls_t *tls)
 {
+    SSL_set_connect_state(tls->ssl);
     return cwr__tls_handshake(tls);
 }
 
