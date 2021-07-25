@@ -26,9 +26,6 @@
 
 #ifndef CWR_URL_H
 #define CWR_URL_H
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include <stddef.h>
 #if defined(_WIN32) && !defined(__MINGW32__) && \
@@ -85,7 +82,4 @@ int http_parser_parse_url(const char *buf, size_t buflen,
                           int is_connect,
                           struct http_parser_url *u);
 
-#ifdef __cplusplus
-}
-#endif
 #endif
