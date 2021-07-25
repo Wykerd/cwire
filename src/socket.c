@@ -2,6 +2,7 @@
 #include <cwire/url.h>
 #include <cwire/net.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <cwire/no_malloc.h>
 

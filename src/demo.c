@@ -3,10 +3,10 @@
 
 #include <cwire/no_malloc.h>
 
-const char *url = "https://www.example.com/";
+const char *url = "https://93.184.216.34/";
 const char *request = 
     "GET / HTTP/1.1\r\n"
-    "Host: www.example.com\r\n"
+    "Host: 93.184.216.34\r\n"
     "Accept: */*\r\n"
     "User-Agent: cwire/0.0.0\r\n\r\n";
 
