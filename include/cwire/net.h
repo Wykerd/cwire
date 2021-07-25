@@ -10,6 +10,6 @@ int cwr_net_is_numeric_host (const char *hostname);
 /**
  * Initializes OpenSSL globals
  */
-void cwr_tls_init ();
+void cwr_openssl_init ();
 
 #endif

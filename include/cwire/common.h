@@ -9,13 +9,6 @@
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
-typedef struct cwr_buf_s {
-    char* base;
-    size_t len;
-    size_t size;
-    cwr_malloc_ctx_t *m_ctx;
-} cwr_buf_t;
-
 /* Malloc function implementation is same as the one used in QuickJS which is also MIT licensed */
 typedef struct cwr_malloc_state_s {
     size_t malloc_count;
@@ -87,6 +80,13 @@ void *cwr_malloc (cwr_malloc_ctx_t *ctx, size_t size);
 void cwr_free (cwr_malloc_ctx_t *ctx, void *ptr);
 void *cwr_realloc (cwr_malloc_ctx_t *ctx, void *ptr, size_t size);
 void *cwr_mallocz (cwr_malloc_ctx_t *ctx, size_t size);
+
+typedef struct cwr_buf_s {
+    char* base;
+    size_t len;
+    size_t size;
+    cwr_malloc_ctx_t *m_ctx;
+} cwr_buf_t;
 
 void *cwr_buf_malloc (cwr_buf_t *buf, cwr_malloc_ctx_t *ctx, size_t initial_size);
 void *cwr_buf_resize (cwr_buf_t *buf, size_t size);

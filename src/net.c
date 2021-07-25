@@ -32,7 +32,7 @@ int cwr_net_is_numeric_host (const char *hostname) {
            cwr_net_is_numeric_host_v4(hostname);
 }
 
-void cwr_tls_init () {
+void cwr_openssl_init () {
     /* Init openssl */
     SSL_library_init();
     SSL_load_error_strings();

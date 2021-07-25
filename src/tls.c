@@ -97,18 +97,18 @@ int cwr__tls_handshake(cwr_tls_t *tls)
     return !((status == 0) || (status == SSL_ERROR_WANT_WRITE) || (status == SSL_ERROR_WANT_READ));
 }
 
-int cwr_tls_reader(cwr_sock_t *sock, const void *buf, size_t nbytes)
+int cwr_tls_reader(cwr_sock_t *sock, const void *dat, size_t nbytes)
 {
     cwr_tls_t *tls = sock->io.child;
     char buf[SSL_IO_BUF_SIZE];
     int r = 0,
         status;
     size_t len = nbytes;
-    char *src = (char *)buf;
+    char *src = (char *)dat;
 
     while (len > 0)
     {
-        r = BIO_write(tls->ssl, buf, len);
+        r = BIO_write(tls->rbio, src, len);
 
         if (r <= 0)
         {
@@ -151,11 +151,7 @@ int cwr_tls_reader(cwr_sock_t *sock, const void *buf, size_t nbytes)
                 }
             }
             else if (r < 0)
-            {
-                tls->io.err_type = CWR_E_SSL;
-                tls->io.err_code = r;
-                return r;
-            }
+                break;
         } while (r > 0);
 
         /* Do we want some io? */
@@ -189,6 +185,7 @@ int cwr_tls_reader(cwr_sock_t *sock, const void *buf, size_t nbytes)
         if (!((status == 0) || (status == SSL_ERROR_WANT_WRITE) || (status == SSL_ERROR_WANT_READ)))
             return 1;
     }
+    return 0;
 }
 
 int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len) 
@@ -196,9 +193,8 @@ int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len)
     return tls->sock->io.writer(tls->sock, buf, len);
 }
 
-static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock, cwr_tls_t *tls)
+static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls)
 {
-    tls->loop = loop;
     tls->m_ctx = m_ctx;
 
     tls->io.reader = NULL;
@@ -219,25 +215,24 @@ static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock
     }
 
     tls->ssl = SSL_new(tls->sec_ctx.ssl_ctx);
+    SSL_set_connect_state(tls->ssl);
 
     tls->rbio = cwr_crypto_bio_new(tls->m_ctx);
     tls->wbio = cwr_crypto_bio_new(tls->m_ctx);
     SSL_set_bio(tls->ssl, tls->rbio, tls->wbio);
 }
 
-unsigned long cwr_tls_init_ex(cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx)
+unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx)
 {
-    return cwr__tls_init_intr(m_ctx, loop, sock, tls);
     tls->sec_ctx = *sec_ctx;
+    return cwr__tls_init_intr(m_ctx, sock, tls);
 }
 
-unsigned long cwr_tls_init(cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock, cwr_tls_t *tls)
+unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls)
 {
-    if (cwr__tls_init_intr(m_ctx, loop, sock, tls))
-        return 1;
     // TODO: prefered ciphers & errors
     unsigned long r;
-    r = cwr_sec_ctx_init(&tls->sec_ctx, TLS_method(), 0, 0);
+    r = cwr_sec_ctx_init(&tls->sec_ctx, m_ctx, TLS_client_method(), 0, 0);
     if (r)
     {
         tls->io.err_type = CWR_E_SSL_ERR;
@@ -245,13 +240,17 @@ unsigned long cwr_tls_init(cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t 
         return r;
     }
     r = cwr_sec_ctx_set_ciphers(&tls->sec_ctx, "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4");
+    r = cwr_sec_ctx_add_root_certs(&tls->sec_ctx);
+
+    if (cwr__tls_init_intr(m_ctx, sock, tls))
+        return 1;
 
     return r;
 }
 
 int cwr_tls_write(cwr_tls_t *tls, const void *buf, size_t len)
 {
-    cwr_buf_push_back(&tls->enc_buf, buf, len);
+    cwr_buf_push_back(&tls->enc_buf, (char *)buf, len);
 
     if (!SSL_is_init_finished(tls->ssl))
         return 0;
@@ -261,7 +260,6 @@ int cwr_tls_write(cwr_tls_t *tls, const void *buf, size_t len)
 
 int cwr_tls_connect(cwr_tls_t *tls)
 {
-    SSL_set_connect_state(tls->ssl);
     return cwr__tls_handshake(tls);
 }
 

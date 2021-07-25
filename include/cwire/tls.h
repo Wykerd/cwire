@@ -30,8 +30,8 @@ struct cwr_tls_s {
 };
 
 int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len);
-unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx);
-unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock, cwr_tls_t *tls);
+unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx);
+unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_sock_t *sock, cwr_tls_t *tls);
 int cwr_tls_write (cwr_tls_t *tls, const void *buf, size_t len);
 int cwr_tls_connect (cwr_tls_t *tls); 
 /**

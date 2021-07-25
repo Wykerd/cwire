@@ -48,7 +48,7 @@ unsigned long cwr_sec_ctx_set_ciphers (cwr_secure_ctx_t *ctx, const char* cipher
 unsigned long cwr_sec_ctx_set_ecdh_curve (cwr_secure_ctx_t *ctx, const char* curve); // SetECDHCurve
 unsigned long cwr_sec_ctx_set_sigalgs (cwr_secure_ctx_t *ctx, const char* sigalgs); // SetSigalgs
 
-unsigned long cwr_sec_ctx_init (cwr_secure_ctx_t *ctx, const SSL_METHOD* method, int min_version, int max_version);
+unsigned long cwr_sec_ctx_init (cwr_secure_ctx_t *ctx, cwr_malloc_ctx_t *m_ctx, const SSL_METHOD* method, int min_version, int max_version);
 void cwr_sec_ctx_free (cwr_secure_ctx_t *ctx);
 
 /** TODO: NOT YET IMPLEMENTED

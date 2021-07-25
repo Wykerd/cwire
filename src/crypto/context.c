@@ -267,11 +267,9 @@ void cwr_sec_ctx_free (cwr_secure_ctx_t *ctx) {
 }
 
 // min -> TLS1_VERSION // max -> 
-unsigned long cwr_sec_ctx_init (cwr_secure_ctx_t *ctx, const SSL_METHOD* method, int min_version, int max_version) {
-    if (unlikely(ctx->ssl_ctx != NULL)) {
-        cwr_sec_ctx_free(ctx);
-    }
-
+unsigned long cwr_sec_ctx_init  (cwr_secure_ctx_t *ctx, cwr_malloc_ctx_t *m_ctx, const SSL_METHOD* method, int min_version, int max_version)
+{
+    ctx->m_ctx = m_ctx;
     ctx->ssl_ctx = SSL_CTX_new(method);
     if (!ctx->ssl_ctx)
         return ERR_get_error();
