@@ -6,6 +6,7 @@ project(cwire LANGUAGES C VERSION 0.1.0)
 
 add_library(cwire SHARED
     src/common.c
+    src/net.c
     # URL
     src/url.c
     # SOCKET

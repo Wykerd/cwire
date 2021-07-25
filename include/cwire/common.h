@@ -41,7 +41,8 @@ typedef enum cwr_err {
 typedef enum cwr_intr_err {
     CWR_E_INTERNAL_OK = 0,
     CWR_E_INTERNAL_OOM,
-    CWR_E_INTERNAL_URLPARSE
+    CWR_E_INTERNAL_URLPARSE,
+    CWR_E_UNREACHABLE
 } cwr_intr_err_t;
 
 typedef enum cwr_usr_err {

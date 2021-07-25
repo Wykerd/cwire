@@ -6,6 +6,7 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <cwire/no_malloc.h>
 
 int cwr_net_is_numeric_host_af (const char *hostname, int family) {
     struct in6_addr dst;

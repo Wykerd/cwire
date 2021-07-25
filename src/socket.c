@@ -1,5 +1,6 @@
 #include <cwire/socket.h>
 #include <cwire/url.h>
+#include <cwire/net.h>
 #include <string.h>
 
 #include <cwire/no_malloc.h>
@@ -156,6 +157,46 @@ int cwr_sock_connect_host (cwr_sock_t *sock, const char *hostname, const char *p
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
+
+    int n = cwr_net_is_numeric_host_v(hostname);
+    if (n)
+    {
+        int r;
+        switch (n)
+        {
+        case 4:
+            {
+                struct sockaddr_in dst;
+                r = uv_ip4_addr(hostname, atoi(port), &dst);
+                cwr_sock_connect(sock, (struct sockaddr *)&dst);
+            }
+            break;
+        
+        case 6:
+            {
+                struct sockaddr_in6 dst;
+                r = uv_ip6_addr(hostname, atoi(port), &dst);
+                cwr_sock_connect(sock, (struct sockaddr *)&dst);
+            }
+            break;
+
+        default:
+            {
+                sock->io.err_type = CWR_E_INTERNAL;
+                sock->io.err_code = CWR_E_UNREACHABLE;
+                return CWR_E_UNREACHABLE;
+            }
+        }
+
+        if (unlikely(r != 0))
+        {
+            sock->io.err_type = CWR_E_UV;
+            sock->io.err_code = r;
+            return r;
+        };
+
+        return 0;
+    }
 
     int r = uv_getaddrinfo(
         sock->loop,
