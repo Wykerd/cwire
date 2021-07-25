@@ -11,7 +11,6 @@ A lightweight asynchronous networking library for C
 - llhttp
 
 ## Toolchain
-- node & npm (for llhttp)
 - gcc
 - cmake
 

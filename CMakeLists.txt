@@ -5,16 +5,20 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 project(cwire LANGUAGES C VERSION 0.1.0)
 
 add_library(cwire SHARED
-    src/common.c
-    src/net.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/net.c
+    # llhttp
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/src/api.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/src/http.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/src/llhttp.c
     # URL
-    src/url.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/url.c
     # SOCKET
-    src/socket.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/socket.c
     # TLS
-    src/crypto/bio.c
-    src/crypto/context.c
-    src/tls.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/bio.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/context.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/tls.c
 )
 
 set_target_properties(cwire PROPERTIES
@@ -28,15 +32,13 @@ find_package(Threads REQUIRED)
 
 target_include_directories(cwire PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include 
-    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/build
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/include
     
     ${UV_INCLUDE_DIR}
     ${OPENSSL_INCLUDE_DIR}
 )
 
 target_link_libraries(cwire 
-    # HTTP
-    ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/build/libllhttp.a
     # TLS
     OpenSSL::SSL 
     OpenSSL::Crypto 
