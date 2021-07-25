@@ -1,10 +1,7 @@
 #include <cwire/crypto/bio.h>
 #include <string.h>
 
-#define malloc(s) malloc_is_forbidden(s)
-#define free(p) free_is_forbidden(p)
-#define realloc(p,s) realloc_is_forbidden(p,s)
-#define strdup(p) strdup_is_forbidden(s)
+#include <cwire/no_malloc.h>
 
 #define LIMIT_BEFORE_EXPANSION 0x5ffffffc
 

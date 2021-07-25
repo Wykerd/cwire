@@ -30,6 +30,7 @@
 #include <string.h>
 #include <limits.h>
 #include <cwire/url.h>
+#include <cwire/no_malloc.h>
 
 #ifndef BIT_AT
 # define BIT_AT(a, i)                                                \

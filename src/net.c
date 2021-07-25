@@ -13,17 +13,19 @@ int cwr_net_is_numeric_host_af (const char *hostname, int family) {
 }
 
 int cwr_net_is_numeric_host_v6 (const char *hostname) {
-    cwr_net_is_numeric_host_af(hostname, AF_INET6);
+    return cwr_net_is_numeric_host_af(hostname, AF_INET6);
 }
 
 int cwr_net_is_numeric_host_v4 (const char *hostname) {
-    cwr_net_is_numeric_host_af(hostname, AF_INET);
+    return cwr_net_is_numeric_host_af(hostname, AF_INET);
 }
 
 int cwr_net_is_numeric_host_v (const char *hostname) {
     int v = 0;
-    if (cwr_net_is_numeric_host_v4(hostname)) v = 4;
-    else if (cwr_net_is_numeric_host_v6(hostname)) v = 6;
+    if (cwr_net_is_numeric_host_v4(hostname)) 
+        v = 4;
+    else if (cwr_net_is_numeric_host_v6(hostname)) 
+        v = 6;
     return v;
 }
 

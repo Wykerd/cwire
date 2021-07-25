@@ -104,6 +104,8 @@ static void *cwr__def_realloc(cwr_malloc_state_t *s, void *ptr, size_t size)
     return ptr;
 }
 
+#include <cwire/no_malloc.h>
+
 static const cwr_malloc_funcs_t def_malloc_funcs = {
     cwr__def_malloc,
     cwr__def_free,

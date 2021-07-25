@@ -2,6 +2,8 @@
 #include "cwire/crypto/bio.h"
 #include <string.h>
 
+#include <cwire/no_malloc.h>
+
 int cwr_crypto_no_password_cb (char* buf, int size, int rwflag, void* u) {
     return 0;
 }

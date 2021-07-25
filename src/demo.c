@@ -1,6 +1,8 @@
 #include <cwire.h>
 #include <string.h>
 
+#include <cwire/no_malloc.h>
+
 const char *url = "https://www.example.com/";
 const char *request = 
     "GET / HTTP/1.1\r\n"

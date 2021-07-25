@@ -1,10 +1,8 @@
 #include <cwire/tls.h>
 
 #define SSL_IO_BUF_SIZE 1024
-#define malloc(s) malloc_is_forbidden(s)
-#define free(p) free_is_forbidden(p)
-#define realloc(p, s) realloc_is_forbidden(p, s)
-#define strdup(p) strdup_is_forbidden(s)
+
+#include <cwire/no_malloc.h>
 
 static int cwr__tls_flush_wbio (cwr_tls_t *tls)
 {
