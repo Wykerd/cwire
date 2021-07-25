@@ -37,7 +37,7 @@ static X509* root_certs_vector[root_certs_len] = { NULL };
 
 static int root_certs_loaded = 0;
 
-int cwr_sec_ctx_ssl_ctx_use_certificate_chain_bio (SSL_CTX* context, BIO* cbio) {
+unsigned long cwr_sec_ctx_ssl_ctx_use_certificate_chain_bio (SSL_CTX* context, BIO* cbio) {
     ERR_clear_error();
 
     X509_INFO *itmp;
@@ -85,12 +85,12 @@ int cwr_sec_ctx_ssl_ctx_use_certificate_chain_bio (SSL_CTX* context, BIO* cbio) 
 
     sk_X509_INFO_pop_free(inf, X509_INFO_free);
 
-    return 1;
+    return 0;
 
 error:
     sk_X509_INFO_pop_free(inf, X509_INFO_free);
 
-    return 0;
+    return ERR_get_error();
 }
 
 X509_STORE* cwr_sec_ctx_new_root_cert_store (cwr_malloc_ctx_t *ctx, int use_openssl_default_store) {
@@ -105,12 +105,20 @@ X509_STORE* cwr_sec_ctx_new_root_cert_store (cwr_malloc_ctx_t *ctx, int use_open
         if (!root_certs_loaded) {
             for (size_t i = 0; i < root_certs_len; i++) {
                 BIO* inbio = cwr_crypto_bio_new_from_buf_fixed(ctx, root_certs[i], strlen(root_certs[i]));
+                if (!inbio)
+                {
+                    X509_STORE_free(store);
+                    return NULL;
+                }
+                
                 X509* x509 = PEM_read_bio_X509(inbio, NULL, cwr_crypto_no_password_cb, NULL);
                 BIO_free(inbio);
 
-                if (unlikely(x509 == NULL)) {
+                if (unlikely(x509 == NULL)) 
+                {
+                    X509_STORE_free(store);
                     return NULL;
-                };
+                }
 
                 root_certs_vector[i] = x509;
             };
@@ -126,18 +134,18 @@ X509_STORE* cwr_sec_ctx_new_root_cert_store (cwr_malloc_ctx_t *ctx, int use_open
     return store;
 };
 
-int cwr_sec_ctx_add_root_certs (cwr_secure_ctx_t *ctx) {
+cwr_intr_err_t cwr_sec_ctx_add_root_certs (cwr_secure_ctx_t *ctx) {
     if (root_cert_store == NULL) {
         root_cert_store = cwr_sec_ctx_new_root_cert_store(ctx->m_ctx, CWR_USE_OPENSSL_DEFAULT_STORE);
     };
 
     if (root_cert_store == NULL)
-        return 0; 
+        return CWR_E_INTERNAL_OOM; 
 
     X509_STORE_up_ref(root_cert_store);
     SSL_CTX_set_cert_store(ctx->ssl_ctx, root_cert_store);
 
-    return 1;
+    return CWR_E_INTERNAL_OK;
 };
 
 unsigned long cwr_sec_ctx_set_key (cwr_secure_ctx_t *ctx, BIO *key, const uv_buf_t *password) 
@@ -169,8 +177,8 @@ unsigned long cwr_sec_ctx_set_key (cwr_secure_ctx_t *ctx, BIO *key, const uv_buf
 
 unsigned long cwr_sec_ctx_set_cert (cwr_secure_ctx_t *ctx, BIO *cert) {
     int r = cwr_sec_ctx_ssl_ctx_use_certificate_chain_bio(ctx->ssl_ctx, cert);
-    if (!r) 
-        return ERR_get_error();
+    if (r) 
+        return r;
 
     return 0;
 }
@@ -232,6 +240,8 @@ unsigned long cwr_sec_ctx_set_cipher_suites (cwr_secure_ctx_t *ctx, const char* 
 };
 
 unsigned long cwr_sec_ctx_set_ciphers (cwr_secure_ctx_t *ctx, const char* ciphers) {
+    ERR_clear_error();
+
     if (!SSL_CTX_set_cipher_list(ctx->ssl_ctx, ciphers)) {
         unsigned long err = ERR_get_error();
 

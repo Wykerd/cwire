@@ -38,6 +38,7 @@ static void cwr__tls_closed (cwr_tls_t *tls)
 
 int main () {
     puts("OK");
+    cwr_openssl_init();
     cwr_malloc_ctx_t malloc_ctx;
     cwr_malloc_ctx_new(&malloc_ctx);
     cwr_sock_t sock;

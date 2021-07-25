@@ -73,6 +73,13 @@ typedef enum cwr_usr_err {
 
 DEF_CWR_LINK_CLS(link, void);
 
+typedef struct cwr_linkable_s {
+    void *data;
+    cwr_link_t io;
+} cwr_linkable_t;
+
+const char *cwr_err_get_str(cwr_linkable_t *link);
+
 void cwr_malloc_ctx_new_ex (cwr_malloc_ctx_t *ctx, const cwr_malloc_funcs_t *mf);
 void cwr_malloc_ctx_new (cwr_malloc_ctx_t *ctx);
 int cwr_malloc_ctx_set_limit (cwr_malloc_ctx_t *ctx, size_t limit);

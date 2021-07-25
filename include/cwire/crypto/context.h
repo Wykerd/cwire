@@ -35,14 +35,14 @@ int cwr_crypto_password_cb (char* buf, int size, int rwflag, void* u);
  * This function is pulled from stackoverflow
  * https://stackoverflow.com/questions/3810058/read-certificate-files-from-memory-instead-of-a-file-using-openssl
  * */
-int cwr_sec_ctx_ssl_ctx_use_certificate_chain_bio (SSL_CTX* context, BIO* cbio);
+unsigned long cwr_sec_ctx_ssl_ctx_use_certificate_chain_bio (SSL_CTX* context, BIO* cbio);
 
 X509_STORE* cwr_sec_ctx_new_root_cert_store (cwr_malloc_ctx_t *ctx, int use_openssl_default_store); // NewRootCertStore
 unsigned long cwr_sec_ctx_set_key (cwr_secure_ctx_t *ctx, BIO *key, const uv_buf_t *password); // SetKey
 unsigned long cwr_sec_ctx_set_cert (cwr_secure_ctx_t *ctx, BIO *cert); // SetCert
 unsigned long cwr_sec_ctx_add_cacert (cwr_secure_ctx_t *ctx, BIO *bio); // AddCACert
 unsigned long cwr_sec_ctx_add_crl (cwr_secure_ctx_t *ctx, BIO *bio); // AddCRL
-int cwr_sec_ctx_add_root_certs (cwr_secure_ctx_t *ctx); // AddRootCerts
+cwr_intr_err_t cwr_sec_ctx_add_root_certs (cwr_secure_ctx_t *ctx); // AddRootCerts
 unsigned long cwr_sec_ctx_set_cipher_suites (cwr_secure_ctx_t *ctx, const char* ciphers); // SetCipherSuites
 unsigned long cwr_sec_ctx_set_ciphers (cwr_secure_ctx_t *ctx, const char* ciphers); // SetCiphers
 unsigned long cwr_sec_ctx_set_ecdh_curve (cwr_secure_ctx_t *ctx, const char* curve); // SetECDHCurve

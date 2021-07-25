@@ -39,5 +39,6 @@ void cwr_openssl_init () {
     /* Init openssl */
     SSL_library_init();
     SSL_load_error_strings();
+    ERR_load_ERR_strings();
     OpenSSL_add_all_algorithms();
 }

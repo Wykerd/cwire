@@ -7,6 +7,7 @@ static int cwr__tls_flush_wbio (cwr_tls_t *tls)
     char buf[CWR_SSL_IO_BUF_SIZE];
     int r = 0,
         wr = 0;
+    ERR_clear_error();
     do
     {
         r = BIO_read(tls->wbio, buf, sizeof(buf));
@@ -25,7 +26,7 @@ static int cwr__tls_flush_wbio (cwr_tls_t *tls)
         else if (!BIO_should_retry(tls->wbio))
         {
             tls->io.err_type = CWR_E_SSL_BIO_IO;
-            tls->io.err_code = r;
+            tls->io.err_code = ERR_get_error();
             return r;
         }
     } while (r > 0);
@@ -38,6 +39,7 @@ static int cwr__tls_flush_enc_buf(cwr_tls_t *tls)
     int r = 0,
         status;
 
+    ERR_clear_error();
     while (tls->enc_buf.len > 0)
     {
         int r = SSL_write(tls->ssl, tls->enc_buf.base, tls->enc_buf.len);
@@ -68,6 +70,7 @@ int cwr__tls_handshake(cwr_tls_t *tls)
         wr = 0,
         status = 0;
 
+    ERR_clear_error();
     if (!SSL_is_init_finished(tls->ssl))
     {
         r = SSL_do_handshake(tls->ssl);
@@ -91,6 +94,8 @@ int cwr_tls_reader(cwr_sock_t *sock, const void *dat, size_t nbytes)
     size_t len = nbytes;
     char *src = (char *)dat;
 
+    ERR_clear_error();
+
     while (len > 0)
     {
         r = BIO_write(tls->rbio, src, len);
@@ -98,7 +103,7 @@ int cwr_tls_reader(cwr_sock_t *sock, const void *dat, size_t nbytes)
         if (r <= 0)
         {
             tls->io.err_type = CWR_E_SSL_BIO_IO;
-            tls->io.err_code = r;
+            tls->io.err_code = ERR_get_error();
             return r;
         }
 
@@ -254,6 +259,7 @@ void cwr_tls_free(cwr_tls_t *tls)
 
 int cwr_tls_shutdown (cwr_tls_t *tls)
 {
+    ERR_clear_error();
     int r = SSL_shutdown(tls->ssl);
     int status = SSL_get_error(tls->ssl, r);
     if ((status == SSL_ERROR_WANT_WRITE) || (status == SSL_ERROR_WANT_READ))

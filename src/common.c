@@ -179,6 +179,46 @@ void *cwr_mallocz (cwr_malloc_ctx_t *ctx, size_t size)
     return memset(ptr, 0, size);
 }
 
+static const char unknown_error[] = "Unknown error";
+static const char user_error[] = "User defined method error";
+static const char *internal_errors[] = {
+    "OK",
+    "Out of memory",
+    "Failed to parse URL",
+    "Unreachable code reached"
+};
+
+#include <openssl/err.h>
+
+const char *cwr_err_get_str(cwr_linkable_t *link)
+{
+    switch (link->io.err_type)
+    {
+    case CWR_E_INTERNAL:
+        {
+            if ((link->io.err_code >= 0) && (link->io.err_code < (sizeof(internal_errors) / sizeof(char *))))
+            {
+                return internal_errors[link->io.err_code];
+            }
+            return unknown_error;
+        }
+
+    case CWR_E_USER:
+        return user_error;
+
+    case CWR_E_UV:
+        return uv_err_name(link->io.err_code);
+
+    case CWR_E_SSL:
+    case CWR_E_SSL_ERR:
+    case CWR_E_SSL_BIO_IO:
+        return ERR_error_string(link->io.err_code, NULL);
+    
+    default:
+        return unknown_error;
+    }
+}
+
 void *cwr_buf_malloc (cwr_buf_t *buf, cwr_malloc_ctx_t *ctx, size_t initial_size)
 {
     buf->m_ctx = ctx;
