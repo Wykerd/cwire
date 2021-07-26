@@ -3,7 +3,10 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Memory allocation implementation is from QuickJS, which is licenced under the MIT license */
+/* Memory allocation implementation is from QuickJS, 
+ * which is licenced under the MIT license. It is available here:
+ * https://bellard.org/quickjs/
+ */
 #if defined(__APPLE__)
 #include <malloc/malloc.h>
 #elif defined(__linux__)
@@ -107,9 +110,9 @@ static void *cwr__def_realloc(cwr_malloc_state_t *s, void *ptr, size_t size)
 #include <cwire/no_malloc.h>
 
 static const cwr_malloc_funcs_t def_malloc_funcs = {
-    cwr__def_malloc,
-    cwr__def_free,
-    cwr__def_realloc,
+    (void *(*)(void *, size_t))cwr__def_malloc,
+    (void *(*)(void *, void *, size_t))cwr__def_realloc,
+    (void (*)(void *, void *))cwr__def_free,
 #if defined(__APPLE__)
     malloc_size,
 #elif defined(_WIN32)

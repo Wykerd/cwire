@@ -9,7 +9,6 @@
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
-/* Malloc function implementation is same as the one used in QuickJS which is also MIT licensed */
 typedef struct cwr_malloc_state_s {
     size_t malloc_count;
     size_t malloc_size;
@@ -18,16 +17,21 @@ typedef struct cwr_malloc_state_s {
 } cwr_malloc_state_t;
 
 typedef struct cwr_mallloc_funcs_s {
-    void *(*cwr_malloc)(cwr_malloc_state_t *, size_t);
-    void (*cwr_free)(cwr_malloc_state_t *, void *);
-    void *(*cwr_realloc)(cwr_malloc_state_t *, void *, size_t);
+    void *(*cwr_malloc)(void *state, size_t size);
+    void *(*cwr_realloc)(void *state, void *ptr, size_t size);
+    void (*cwr_free)(void *state, void *ptr);
     size_t (*cwr_malloc_usable_size)(const void *ptr);
 } cwr_malloc_funcs_t;
 
-typedef struct cwr_malloc_ctx_s {
-    cwr_malloc_funcs_t mf;
-    cwr_malloc_state_t ms;
-} cwr_malloc_ctx_t;
+#define DEF_CWR_ALLOC_CONTEXT(state)   \
+    {                                   \
+        cwr_malloc_funcs_t mf;          \
+        state ms;                       \
+    }
+
+typedef struct cwr_malloc_ctx_s 
+    DEF_CWR_ALLOC_CONTEXT(cwr_malloc_state_t) 
+cwr_malloc_ctx_t;
 
 typedef enum cwr_err {
     CWR_E_INTERNAL,
@@ -71,12 +75,14 @@ typedef enum cwr_usr_err {
         ssize_t err_code;                                               \
     }
 
-DEF_CWR_LINK_CLS(link, void);
+typedef struct cwr_linkable_s cwr_linkable_t;
 
-typedef struct cwr_linkable_s {
+DEF_CWR_LINK_CLS(link, cwr_linkable_t);
+
+struct cwr_linkable_s {
     void *data;
     cwr_link_t io;
-} cwr_linkable_t;
+};
 
 const char *cwr_err_get_str(cwr_linkable_t *link);
 
