@@ -243,28 +243,28 @@ int cwr_sock_connect_url (cwr_sock_t *sock, const char *url, size_t len)
         switch (u.field_data[UF_SCHEMA].len)
         {
         case 5:
-            if (!strncmp(url + u.field_data[UF_SCHEMA].off, "https", u.field_data[UF_SCHEMA].len))
+            if (!strncasecmp(url + u.field_data[UF_SCHEMA].off, "https", u.field_data[UF_SCHEMA].len))
             {
                 strcpy(port, "443");
             }
             break;
 
         case 4:
-            if (!strncmp(url + u.field_data[UF_SCHEMA].off, "http", u.field_data[UF_SCHEMA].len))
+            if (!strncasecmp(url + u.field_data[UF_SCHEMA].off, "http", u.field_data[UF_SCHEMA].len))
             {
                 strcpy(port, "80");
             }
             break;
 
         case 3:
-            if (!strncmp(url + u.field_data[UF_SCHEMA].off, "wss", u.field_data[UF_SCHEMA].len))
+            if (!strncasecmp(url + u.field_data[UF_SCHEMA].off, "wss", u.field_data[UF_SCHEMA].len))
             {
                 strcpy(port, "443");
             }
             break;
 
         case 2:
-            if (!strncmp(url + u.field_data[UF_SCHEMA].off, "ws", u.field_data[UF_SCHEMA].len))
+            if (!strncasecmp(url + u.field_data[UF_SCHEMA].off, "ws", u.field_data[UF_SCHEMA].len))
             {
                 strcpy(port, "80");
             }
