@@ -13,7 +13,7 @@ static int cwr__tls_flush_wbio (cwr_tls_t *tls)
         r = BIO_read(tls->wbio, buf, sizeof(buf));
         if (r > 0)
         {
-            int wr = tls->io.writer(tls, buf, r);
+            int wr = tls->sock->io.writer(tls->sock, buf, r);
             if (wr)
                 return wr;
             if (tls->io.on_write)
@@ -87,7 +87,7 @@ int cwr__tls_handshake(cwr_tls_t *tls)
 
 int cwr_tls_reader (cwr_linkable_t *sock, const void *dat, size_t nbytes)
 {
-    cwr_tls_t *tls = sock->io.child;
+    cwr_tls_t *tls = (cwr_tls_t *)sock->io.child;
     char buf[CWR_SSL_IO_BUF_SIZE];
     int r = 0,
         status;
@@ -170,7 +170,12 @@ int cwr_tls_reader (cwr_linkable_t *sock, const void *dat, size_t nbytes)
 
 int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len) 
 {
-    return tls->sock->io.writer(tls->sock, buf, len);
+    cwr_buf_push_back(&tls->enc_buf, (char *)buf, len);
+
+    if (!SSL_is_init_finished(tls->ssl))
+        return 0;
+
+    return cwr__tls_flush_enc_buf(tls);
 }
 
 static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls)
@@ -185,7 +190,7 @@ static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr
 
     tls->sock = sock;
     tls->sock->io.reader = cwr_tls_reader;
-    tls->sock->io.child = tls;
+    tls->sock->io.child = (cwr_linkable_t *)tls;
 
     if (!cwr_buf_malloc(&tls->enc_buf, tls->m_ctx, CWR_SSL_IO_BUF_SIZE))
     {
@@ -235,19 +240,27 @@ ssl_err:
     return r;
 }
 
-int cwr_tls_write(cwr_tls_t *tls, const void *buf, size_t len)
+int cwr_tls_write (cwr_tls_t *tls, const void *buf, size_t len)
 {
-    cwr_buf_push_back(&tls->enc_buf, (char *)buf, len);
-
-    if (!SSL_is_init_finished(tls->ssl))
-        return 0;
-
-    return cwr__tls_flush_enc_buf(tls);
+    return tls->io.writer(tls, buf, len);
 }
 
 int cwr_tls_connect(cwr_tls_t *tls)
 {
     SSL_set_connect_state(tls->ssl);
+    return cwr__tls_handshake(tls);
+}
+
+int cwr_tls_connect_with_sni (cwr_tls_t *tls, const char *host)
+{
+    SSL_set_connect_state(tls->ssl);
+    int r = SSL_set_tlsext_host_name(tls->ssl, host);
+    if (r)
+    {
+        tls->io.err_code = CWR_E_SSL_ERR;
+        tls->io.err_type = ERR_get_error();
+        return CWR_E_SSL_ERR;
+    };
     return cwr__tls_handshake(tls);
 }
 
