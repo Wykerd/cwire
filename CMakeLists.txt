@@ -20,6 +20,8 @@ add_library(cwire SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/bio.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/context.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tls.c
+    # WEBSOCKET
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ws.c
 )
 
 set_target_properties(cwire PROPERTIES

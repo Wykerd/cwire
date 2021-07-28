@@ -20,7 +20,7 @@ static void cwr__connect_cb (cwr_sock_t *sock)
 
 static void cwr__err (cwr_sock_t *sock)
 {
-    puts(uv_err_name(sock->io.err_code));
+    puts(cwr_err_get_str((cwr_linkable_t*)sock));
 }
 
 static int cwr__reader (cwr_tls_t *tls, const void *buf, size_t len)
@@ -33,7 +33,7 @@ static int cwr__reader (cwr_tls_t *tls, const void *buf, size_t len)
 static void cwr__tls_closed (cwr_tls_t *tls)
 {
     puts("\nTLS HAS CLOSED");
-    cwr_sock_shutdown(tls->sock);
+    cwr_sock_shutdown((cwr_sock_t*)tls->sock);
 }
 
 int main () {
@@ -42,11 +42,12 @@ int main () {
     cwr_malloc_ctx_t malloc_ctx;
     cwr_malloc_ctx_new(&malloc_ctx);
     cwr_sock_t sock;
+/*
     cwr_tls_t tls;
     cwr_sock_init(&malloc_ctx, uv_default_loop(), &sock);
     sock.io.on_error = cwr__err;
     sock.on_connect = cwr__connect_cb;
-    cwr_tls_init(&malloc_ctx, &sock, &tls);
+    cwr_tls_init(&malloc_ctx, (cwr_linkable_t*)&sock, &tls);
     sock.data = &tls;
     tls.io.reader = cwr__reader;
     tls.on_close = cwr__tls_closed;
@@ -56,4 +57,14 @@ int main () {
     cwr_sec_ctx_free(&tls.sec_ctx);
     puts("DONE AND DONE");
     cwr_malloc_ctx_dump_leaks(&malloc_ctx);
+*/
+    printf("%zu\n", cwr_base64_encoded_size(20, CWR_B64_MODE_NORMAL));
+    cwr_ws_t ws;
+    cwr_ws_init(&malloc_ctx, (cwr_linkable_t*)&sock, &ws);
+    const char *prots[] = {"hello", "world", NULL};
+    const char *heads[] = {"User-Agent", "cwire/0.0.0", "Origin", "http://example.com", NULL};
+    ws.protocols = prots;
+    ws.handshake_headers = heads;
+
+    cwr_ws_connect(&ws, "wss://gateway.discord.gg/?v=9&encoding=json", strlen("wss://gateway.discord.gg/?v=9&encoding=json"));
 }

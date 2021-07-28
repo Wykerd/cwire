@@ -34,7 +34,9 @@ typedef struct cwr_malloc_ctx_s
 cwr_malloc_ctx_t;
 
 typedef enum cwr_err {
+    CWR_E_OK = 0,
     CWR_E_INTERNAL,
+    CWR_E_UNDERLYING,
     CWR_E_USER,
     CWR_E_UV,
     CWR_E_SSL,
@@ -51,7 +53,11 @@ typedef enum cwr_intr_err {
 
 typedef enum cwr_usr_err {
     CWR_E_USER_OK = 0,
-    CWR_E_USER_READER_ERROR
+    CWR_E_USER_READER_ERROR,
+    CWR_E_USER_HTTP_FIELD,
+    CWR_E_USER_WS_INVALID_SCHEMA,
+    CWR_E_USER_WS_FRAGMENT,
+    CWR_E_USER_WS_PROTOCOL_VAL
 } cwr_usr_err_t;
 
 #define DEF_CWR_LINK_IO_SIGNATURE(classname, type) \
@@ -60,12 +66,14 @@ typedef enum cwr_usr_err {
 #define DEF_CWR_LINK_CB_SIGNATURE(classname, type) \
     typedef void (*cwr_ ## classname ## _cb)(type *)
 
+typedef struct cwr_linkable_s cwr_linkable_t;
+
 #define DEF_CWR_LINK_CLS(classname, parent) \
     typedef struct cwr_ ## classname ## _s cwr_ ## classname ## _t;     \
     DEF_CWR_LINK_IO_SIGNATURE(classname, parent);                       \
     DEF_CWR_LINK_CB_SIGNATURE(classname, parent);                       \
     struct cwr_ ## classname ## _s {                                    \
-        void *child;                                                    \
+        cwr_linkable_t *child;                                          \
         cwr_ ## classname ## _io reader;                                \
         cwr_ ## classname ## _io writer;                                \
         cwr_ ## classname ## _cb on_error;                              \
@@ -74,8 +82,6 @@ typedef enum cwr_usr_err {
         cwr_err_t err_type;                                             \
         ssize_t err_code;                                               \
     }
-
-typedef struct cwr_linkable_s cwr_linkable_t;
 
 DEF_CWR_LINK_CLS(link, cwr_linkable_t);
 
@@ -104,7 +110,7 @@ typedef struct cwr_buf_s {
 
 void *cwr_buf_malloc (cwr_buf_t *buf, cwr_malloc_ctx_t *ctx, size_t initial_size);
 void *cwr_buf_resize (cwr_buf_t *buf, size_t size);
-void *cwr_buf_push_back (cwr_buf_t *buf, char *src, size_t len);
+void *cwr_buf_push_back (cwr_buf_t *buf, const char *src, size_t len);
 void cwr_buf_shift (cwr_buf_t *buf, size_t len);
 void cwr_buf_free (cwr_buf_t *buf);
 

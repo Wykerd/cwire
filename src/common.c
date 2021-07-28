@@ -240,7 +240,7 @@ void *cwr_buf_resize (cwr_buf_t *buf, size_t size)
     return buf->base;
 }
 
-void *cwr_buf_push_back (cwr_buf_t *buf, char *src, size_t len)
+void *cwr_buf_push_back (cwr_buf_t *buf, const char *src, size_t len)
 {
 
     if (buf->size < (buf->len + len))
