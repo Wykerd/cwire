@@ -45,6 +45,32 @@ typedef enum cwr_ws_state {
 
 #define CWR_WS_H_SUCCESSFUL         (CWR_WS_H_STATUS_OK | CWR_WS_H_UPGRADE_OK | CWR_WS_H_ACCEPT_OK | CWR_WS_H_CONNECTION_OK)
 
+typedef enum cwr_ws_intr_state {
+    CWR_WS_S_NEW = 0,
+    CWR_WS_S_OP, // we have read the opcode and are moving on to the mask and len
+    CWR_WS_S_LEN16,
+    CWR_WS_S_LEN64,
+    CWR_WS_S_MASKING_KEY,
+    CWR_WS_S_PAYLOAD
+} cwr_ws_intr_state_t;
+
+#define CWR_WS_OP_CONTINUATION  ((char)0x00)
+#define CWR_WS_OP_TEXT          ((char)0x01)
+#define CWR_WS_OP_BINARY        ((char)0x02)
+#define CWR_WS_OP_CLOSE         ((char)0x08)
+#define CWR_WS_OP_PING          ((char)0x09)
+#define CWR_WS_OP_PONG          ((char)0x0A)
+
+#define CWR_WS_STATUS_NORMAL_CLOSURE        1000
+#define CWR_WS_STATUS_GOING_AWAY            1001
+#define CWR_WS_STATUS_PROTOCOL_ERROR        1002
+#define CWR_WS_STATUS_UNEXCEPTABLE_DATA     1003
+#define CWR_WS_STATUS_INVALID_TYPE          1007
+#define CWR_WS_STATUS_POLICY_VIOLATION      1008
+#define CWR_WS_STATUS_TOO_BIG               1009
+#define CWR_WS_STATUS_EXPECTED_EXTENSION    1010
+#define CWR_WS_STATUS_UNEXPECTED_ERROR      1011
+
 struct cwr_ws_s {
     void *data; /* Opaque data */
     cwr_ws_link_t io; /* IO functions */
@@ -89,6 +115,16 @@ struct cwr_ws_s {
     cwr_buf_t header_field;
     cwr_buf_t header_value;
 
+    cwr_buf_t buffer;
+    /* Internal frame parsing state */
+    cwr_ws_intr_state_t intr_state;
+    int client_mode;
+    char opcode;
+    char fin;
+    char mask;
+    uint64_t payload_len;
+    uint32_t masking_key;
+
     cwr_ws_state_t state;
 };
 
@@ -102,7 +138,7 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws);
  * This can be done by calling `cwr_tls_connect_with_sni` instead of `cwr_tls_connect`
  */
 int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len);
-int cwr_ws_send (cwr_ws_t *ws, const void *buf, size_t len);
+int cwr_ws_send (cwr_ws_t *ws, const void *buf, size_t len, char opcode);
 int cwr_ws_shutdown (cwr_ws_t *ws);
 void cwr_ws_free (cwr_ws_t *ws);
 

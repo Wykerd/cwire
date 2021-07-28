@@ -5,6 +5,21 @@
 #include <assert.h> 
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#if defined(__linux__)
+#  include <endian.h>
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(APPLE)
+#  include <sys/endian.h>
+#elif defined(__OpenBSD__)
+#  include <sys/types.h>
+#  define be16toh(x) betoh16(x)
+#  define be32toh(x) betoh32(x)
+#  define be64toh(x) betoh64(x)
+#elif defined(_MSC_VER)
+#  include <stdlib.h>
+#  define be16toh(x) _byteswap_ushort(x)
+#  define be32toh(x) _byteswap_ulong(x)
+#  define be64toh(x) _byteswap_uint64(x)
+#endif
 
 #include <cwire/no_malloc.h>
 
@@ -66,6 +81,12 @@ int cwr_ws_writer (cwr_ws_t *ws, const void *buf, size_t len)
     return ws->stream->io.writer(ws->stream, buf, len);
 }
 
+static
+void cwr__ws_fail_connection (cwr_ws_t *ws, uint16_t status_code)
+{
+    // TODO:
+}
+
 int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
 {
     cwr_ws_t *ws = (cwr_ws_t *)stream->io.child;
@@ -84,9 +105,152 @@ int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
                 ws->on_fail(ws);
             ws->state = CWR_WS_FAILED;
         }
+
+        return 0;
     }
 
+    if (!cwr_buf_push_back(&ws->buffer, dat, nbytes)) 
+    {
+        ws->io.err_type = CWR_E_INTERNAL;
+        ws->io.err_code = CWR_E_INTERNAL_OOM;
+        if (ws->io.on_error)
+            ws->io.on_error(ws);
+        return 0;
+    }
 
+    char *off = ws->buffer.base;
+    size_t len = ws->buffer.len;
+new_state:
+    if (len == 0)
+        return 0;
+
+    switch (ws->intr_state)
+    {
+    case CWR_WS_S_NEW:
+        {
+            char opcode = ((char *)off)[0] & ~0b11110000;
+            // if (opcode == CWR_WS_OP_CONTINUATION) 
+            ws->opcode = opcode;
+            ws->fin = ((char *)off)[0] & (1 << 7);
+            if (((char *)off)[0] & 0b01110000) // check if a reserved bit is set
+            {
+                ws->io.err_type = CWR_E_WS;
+                ws->io.err_code = CWR_E_WS_RESERVED_BIT_SET;
+                cwr__ws_fail_connection(ws, CWR_WS_STATUS_PROTOCOL_ERROR);
+                return 0;
+            }
+            ws->intr_state = CWR_WS_S_OP;
+            off++;
+            len--;
+            goto new_state;
+        }
+        break;
+
+    case CWR_WS_S_OP:
+        {
+            char payload_len = ((char *)off)[0] & ~(1 << 7);
+            ws->mask = ((char *)off)[0] & (1 << 7);
+            if (ws->client_mode && ws->mask)
+            {
+                ws->io.err_type = CWR_E_WS;
+                ws->io.err_code = CWR_E_WS_SERVER_MASKING;
+                cwr__ws_fail_connection(ws, CWR_WS_STATUS_PROTOCOL_ERROR);
+                return 0;
+            }
+            if (payload_len < 126)
+            {
+                ws->payload_len = payload_len;
+                ws->intr_state = ws->mask ? CWR_WS_S_MASKING_KEY : CWR_WS_S_PAYLOAD;
+            }
+            else if (payload_len == 126)
+                ws->intr_state = CWR_WS_S_LEN16;
+            else if (payload_len == 127)
+                ws->intr_state = CWR_WS_S_LEN64;
+
+            off++;
+            len--;
+            goto new_state;
+        }
+        break;
+
+    case CWR_WS_S_LEN16:
+        {
+            if (len < 2)
+                goto consume_used;
+            
+            uint16_t payload_len = 0;
+            memcpy(&payload_len, off, 2);
+            ws->payload_len = be16toh(payload_len);
+            ws->intr_state = ws->mask ? CWR_WS_S_MASKING_KEY : CWR_WS_S_PAYLOAD;
+            off += 2;
+            len -= 2;
+            goto new_state;
+        }
+        break;
+    
+    case CWR_WS_S_LEN64:
+        {
+            if (len < 8)
+                goto consume_used;
+
+            uint64_t payload_len = 0;
+            memcpy(&payload_len, off, 8);
+            ws->payload_len = be64toh(payload_len);
+            if (ws->payload_len & (uint64_t)(1ull << 63))
+            {
+                ws->io.err_type = CWR_E_WS;
+                ws->io.err_code = CWR_E_WS_PAYLOAD_LENGTH;
+                cwr__ws_fail_connection(ws, CWR_WS_STATUS_PROTOCOL_ERROR);
+                return 0;
+            }
+            ws->intr_state = ws->mask ? CWR_WS_S_MASKING_KEY : CWR_WS_S_PAYLOAD;
+            off += 8;
+            len -= 8;
+            goto new_state;
+        }
+        break;
+
+    case CWR_WS_S_MASKING_KEY:
+        {
+            if (len < 4)
+                goto consume_used;
+
+            uint32_t masking_key = 0;
+            memcpy(&masking_key, off, 4);
+            ws->masking_key = masking_key;
+            ws->intr_state = CWR_WS_S_PAYLOAD;
+            off += 4;
+            len -= 4;
+            goto new_state;
+        }
+        break;
+
+    case CWR_WS_S_PAYLOAD:
+        {
+            if (len < ws->payload_len)
+                goto consume_used;
+            
+            if (ws->on_message)
+                ws->on_message(ws, off, ws->payload_len);
+            
+            if (ws->fin)
+                ws->on_message_complete(ws);
+
+            ws->intr_state = CWR_WS_S_NEW;
+            off += ws->payload_len;
+            len -= ws->payload_len;
+            goto new_state;
+        }
+        break;
+
+    default:
+        assert(0 && "Unreachable code reached");
+        break;
+    }
+
+consume_used:
+    if (ws->buffer.len - len)
+        cwr_buf_shift(&ws->buffer, ws->buffer.len - len);
 
     return 0;
 }
@@ -167,6 +331,13 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws)
     llhttp_settings_init(&ws->http_parser_settings);
 
     memcpy(ws->key, CWR_WS_KEY, sizeof(CWR_WS_KEY));
+
+    if (!cwr_buf_malloc(&ws->buffer, m_ctx, 131))
+    {
+        ws->io.err_type = CWR_E_INTERNAL;
+        ws->io.err_code = CWR_E_INTERNAL_OOM;
+        return CWR_E_INTERNAL_OOM;
+    }
 
     return 0;
 }
@@ -522,6 +693,8 @@ int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len)
     ws->http_parser_settings.on_header_value_complete = cwr__ws_hsc_value_complete;
     ws->http_parser_settings.on_message_complete = cwr__ws_hsc_complete;
 
+    ws->client_mode = 1;
+
     /* URI must be parsed for use in handshake */
     struct http_parser_url u;
     http_parser_url_init(&u);
@@ -631,6 +804,10 @@ int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len)
     return cwr__ws_handshake(ws);
 }
 
-int cwr_ws_send (cwr_ws_t *ws, const void *buf, size_t len);
+int cwr_ws_send (cwr_ws_t *ws, const void *buf, size_t len, char opcode)
+{
+
+}
+
 int cwr_ws_shutdown (cwr_ws_t *ws);
 void cwr_ws_free (cwr_ws_t *ws);
