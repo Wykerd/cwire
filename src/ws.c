@@ -29,7 +29,7 @@ static const char token_chars[256] = {
 };
 
 static
-int cwr__ws_header_includes (const char *needle, cwr_buf_t *header) 
+int cwr__ws_header_includes (const char *needle, size_t needle_len, cwr_buf_t *header) 
 {
     size_t off = 0;
     int lws = 1;
@@ -46,18 +46,19 @@ int cwr__ws_header_includes (const char *needle, cwr_buf_t *header)
 
         lws = 0;
 
-        if (!token_chars[header->base[i]])
-            return -1;
-
         if (header->base[i] == ',')
         {
-            if (strncmp(needle, header->base + off, i - off))
+            if ((i - off == needle_len) && !strncasecmp(needle, header->base + off, i - off))
                 return 1;
             off = i + 1;
             lws = 1;
+            continue;
         }
+
+        if (!token_chars[header->base[i]])
+            return -1;
     }
-    return !strncmp(needle, header->base + off, header->len - off);
+    return (header->len - off == needle_len) && !strncasecmp(needle, header->base + off, header->len - off);
 }
 
 int cwr_ws_writer (cwr_ws_t *ws, const void *buf, size_t len) 
@@ -69,7 +70,25 @@ int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
 {
     cwr_ws_t *ws = (cwr_ws_t *)stream->io.child;
 
+    fwrite(dat, 1, nbytes, stdout);
 
+    if (ws->state == CWR_WS_CONNECTING)
+    {
+        llhttp_errno_t err = llhttp_execute(&ws->http_parser, dat, nbytes);
+        if (err != HPE_OK) {
+            ws->io.err_type = CWR_E_LLHTTP;
+            ws->io.err_code = err;
+            if (ws->io.on_error)
+                ws->io.on_error(ws);
+            if (ws->on_fail)
+                ws->on_fail(ws);
+            ws->state = CWR_WS_FAILED;
+        }
+    }
+
+
+
+    return 0;
 }
 
 static 
@@ -84,7 +103,8 @@ int str2int(const char* str, int len)
     return ret;
 }
 
-static int cwr__ws_header_field (llhttp_t *ll, const char *at, size_t len) {
+static 
+int cwr__ws_hsc_field (llhttp_t *ll, const char *at, size_t len) {
     cwr_ws_t *ws = ll->data;
 
     if (ws->header_field.base == NULL)
@@ -110,7 +130,8 @@ static int cwr__ws_header_field (llhttp_t *ll, const char *at, size_t len) {
     return 0;
 }
 
-static int cwr__ws_header_value (llhttp_t *ll, const char *at, size_t len) {
+static 
+int cwr__ws_hsc_value (llhttp_t *ll, const char *at, size_t len) {
     cwr_ws_t *ws = ll->data;
 
     if (ws->header_value.base == NULL)
@@ -132,23 +153,6 @@ oom:
     return 0;
 }
 
-static int cwr__ws_header_field_complete (llhttp_t *ll)
-{
-    cwr_ws_t *ws = ll->data;
-
-    ws->header_field.len = 0;
-    return 0;
-} 
-
-static int cwr__ws_header_value_complete (llhttp_t *ll)
-{
-    cwr_ws_t *ws = ll->data;
-
-    ws->header_value.len = 0;
-    return 0;
-} 
-
-
 int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws)
 {
     memset(ws, 0, sizeof(cwr_ws_t));
@@ -161,13 +165,6 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws)
     ws->stream->io.reader = cwr_ws_reader;
 
     llhttp_settings_init(&ws->http_parser_settings);
-
-    ws->http_parser_settings.on_header_field = cwr__ws_header_field;
-    ws->http_parser_settings.on_header_value = cwr__ws_header_value;
-
-    ws->http_parser_settings.on_header_field_complete = cwr__ws_header_field_complete;
-    ws->http_parser_settings.on_header_value_complete = 
-    cwr__ws_header_value_complete;
 
     memcpy(ws->key, CWR_WS_KEY, sizeof(CWR_WS_KEY));
 
@@ -216,7 +213,7 @@ oom_shake:
     /* Generate a nonce to use as the Sec-WebSocket-Key */
     char bytes[16];
     int r = RAND_bytes(bytes, 16);
-    if (!r)
+    if (unlikely(!r))
     {
 err_ssl:
         cwr_free(ws->m_ctx, ws->host_name);
@@ -306,8 +303,8 @@ err_ssl:
 
     if (!cwr_buf_push_back(&buf, "\r\n\r\n", 4))
         goto oom_shake;
-/*
-    r = ws->stream->io.writer(ws, buf.base, buf.len);
+
+    r = ws->stream->io.writer(ws->stream, buf.base, buf.len);
     if (r)
     {
         cwr_free(ws->m_ctx, ws->host_name);
@@ -318,7 +315,7 @@ err_ssl:
         return r;
     } 
 
-    ws->state = CWR_WS_CONNECTING;*/
+    ws->state = CWR_WS_CONNECTING;
 
     fwrite(buf.base, 1, buf.len, stdout);
 
@@ -328,23 +325,186 @@ err_ssl:
     SHA_CTX sha1;
 
     r = SHA1_Init(&sha1);
-    if (!r)
+    if (unlikely(!r))
         goto err_ssl;
 
     r = SHA1_Update(&sha1, ws->key, sizeof(ws->key) - 1);
-    if (!r)
+    if (unlikely(!r))
         goto err_ssl;
 
     char digest[SHA_DIGEST_LENGTH];
 
     r = SHA1_Final(digest, &sha1);
-    if (!r)
+    if (unlikely(!r))
         goto err_ssl;
 
     cwr_base64_encode(digest, SHA_DIGEST_LENGTH, ws->key_hash, sizeof(ws->key_hash), CWR_B64_MODE_NORMAL);
     /* End SHA1 hash generation */
 
     return CWR_E_OK;
+}
+
+static
+int cwr__ws_hsc_status (llhttp_t *ll)
+{
+    cwr_ws_t *ws = ll->data;
+
+    switch (ll->status_code)
+    {
+    case 101:
+        {
+            ws->header_state = CWR_WS_H_STATUS_OK;
+        }
+        break;
+
+    case 300:
+    case 301:
+    case 302:
+    case 303:
+    case 304:
+    case 307:
+        {
+            ws->header_state = CWR_WS_H_WANT_REDIRECT; 
+            ws->io.err_code = CWR_E_WS;
+            ws->io.err_type = CWR_E_WS_REDIRECT;
+        }
+        break;
+    
+    default:
+        {
+            ws->header_state = CWR_WS_H_HANDSHAKE_ERR;   
+            ws->io.err_code = CWR_E_WS;
+            ws->io.err_type = CWR_E_WS_INVALID_STATUS;
+        }
+        break;
+    }
+
+    return 0;
+}
+
+static
+int cwr__ws_hsc_value_complete (llhttp_t *ll)
+{
+    cwr_ws_t *ws = ll->data;
+
+    if ((ws->header_state & CWR_WS_H_HANDSHAKE_ERR) ||
+        (ws->header_state & CWR_WS_H_HAS_REDIRECT))
+        goto cleanup;
+
+    if (ws->header_state & CWR_WS_H_WANT_REDIRECT)
+    {
+        if ((ws->header_field.len == 8) && !strncasecmp(ws->header_field.base, "Location", ws->header_field.len))
+        {
+            if (ws->on_want_redirect)
+                ws->on_want_redirect(ws, ws->header_value.base, ws->header_value.len);
+            ws->header_state = CWR_WS_H_HAS_REDIRECT;
+        }
+        goto cleanup;
+    }
+
+    if (!(ws->header_state & CWR_WS_H_UPGRADE_OK) &&
+        (ws->header_field.len == 7) && 
+        !strncasecmp(ws->header_field.base, "Upgrade", ws->header_field.len))
+    {
+        if ((ws->header_value.len != 9) ||
+            strncasecmp(ws->header_value.base, "websocket", 9))
+        {
+            ws->header_state = CWR_WS_H_HANDSHAKE_ERR;   
+            ws->io.err_code = CWR_E_WS;
+            ws->io.err_type = CWR_E_WS_INVALID_UPGRADE_HEADER;
+            goto cleanup;
+        }
+        ws->header_state |= CWR_WS_H_UPGRADE_OK;
+        goto cleanup;
+    }
+
+    if (!(ws->header_state & CWR_WS_H_CONNECTION_OK) &&
+        (ws->header_field.len == 10) && 
+        !strncasecmp(ws->header_field.base, "Connection", ws->header_field.len))
+    {
+        if (!cwr__ws_header_includes("Upgrade", 7, &ws->header_value))
+        {
+            ws->header_state = CWR_WS_H_HANDSHAKE_ERR;   
+            ws->io.err_code = CWR_E_WS;
+            ws->io.err_type = CWR_E_WS_INVALID_CONNECTION_HEADER;
+            goto cleanup;
+        }
+
+        ws->header_state |= CWR_WS_H_CONNECTION_OK;
+        goto cleanup;
+    }
+
+    if ((ws->protocols != NULL) &&
+        (ws->protocol_selected == NULL) &&
+        (ws->header_field.len == 22) && 
+        !strncasecmp(ws->header_field.base, "Sec-WebSocket-Protocol", ws->header_field.len))
+    {
+        const char *prot = ws->protocols[0];
+        while (prot != NULL)
+        {
+            size_t len = strlen(prot);
+            if (len == ws->header_value.len && !memcmp(prot, ws->header_value.base, len))
+            {
+                ws->protocol_selected = cwr_mallocz(ws->m_ctx, ws->header_value.len + 1);
+                if (!ws->protocol_selected)
+                {
+                    ws->header_state = CWR_WS_H_HANDSHAKE_ERR;   
+                    ws->io.err_code = CWR_E_INTERNAL;
+                    ws->io.err_type = CWR_E_INTERNAL_OOM;
+                    goto cleanup;
+                }
+                memcpy(ws->protocol_selected, ws->header_value.base, ws->header_value.len);
+                goto cleanup;
+            }
+        }
+        ws->header_state = CWR_WS_H_HANDSHAKE_ERR;   
+        ws->io.err_code = CWR_E_WS;
+        ws->io.err_type = CWR_E_WS_INVALID_PROTOCOL;
+        goto cleanup;
+    }
+
+    if (!(ws->header_state & CWR_WS_H_ACCEPT_OK) &&
+        (ws->header_field.len == 20) && 
+        !strncasecmp(ws->header_field.base, "Sec-WebSocket-Accept", ws->header_field.len))
+    {
+        if ((ws->header_value.len != sizeof(ws->key_hash)) || 
+            memcmp(ws->header_value.base, ws->key_hash, sizeof(ws->key_hash)))
+        {
+            ws->header_state = CWR_WS_H_HANDSHAKE_ERR;   
+            ws->io.err_code = CWR_E_WS;
+            ws->io.err_type = CWR_E_WS_INVALID_SHA1_KEY;
+            goto cleanup;
+        }
+        ws->header_state |= CWR_WS_H_ACCEPT_OK;
+        goto cleanup;
+    }
+
+cleanup:
+    ws->header_value.len = 0;
+    ws->header_field.len = 0;
+
+    return 0;
+}
+
+static
+int cwr__ws_hsc_complete (llhttp_t *ll)
+{
+    cwr_ws_t *ws = ll->data;
+
+    if (ws->header_state != CWR_WS_H_SUCCESSFUL)
+    {
+        if (ws->on_fail)
+            ws->on_fail(ws);
+        ws->state = CWR_WS_FAILED;
+        goto cleanup;
+    }
+    ws->state = CWR_WS_OPEN;
+    if (ws->on_open)
+        ws->on_open(ws);
+cleanup:
+    cwr_buf_free(&ws->header_field);
+    cwr_buf_free(&ws->header_value);
+    return 0;
 }
 
 int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len)
@@ -356,6 +516,11 @@ int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len)
     llhttp_init(&ws->http_parser, HTTP_RESPONSE, &ws->http_parser_settings);
 
     ws->http_parser.data = ws;
+    ws->http_parser_settings.on_status_complete = cwr__ws_hsc_status;
+    ws->http_parser_settings.on_header_value = cwr__ws_hsc_value;
+    ws->http_parser_settings.on_header_field = cwr__ws_hsc_field;
+    ws->http_parser_settings.on_header_value_complete = cwr__ws_hsc_value_complete;
+    ws->http_parser_settings.on_message_complete = cwr__ws_hsc_complete;
 
     /* URI must be parsed for use in handshake */
     struct http_parser_url u;

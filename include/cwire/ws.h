@@ -24,22 +24,37 @@ typedef struct cwr_ws_s cwr_ws_t;
 DEF_CWR_LINK_CLS(ws_link, cwr_ws_t);
 
 typedef void (*cwr_ws_cb)(cwr_ws_t *);
+typedef void (*cwr_ws_data_cb)(cwr_ws_t *, const char *, size_t);
 
 typedef enum cwr_ws_state {
     CWR_WS_INIT = 0,
     CWR_WS_CONNECTING, /* Sent handshake */
-    CWR_WS_CONNECTED, /* Received and verified handshake */
+    CWR_WS_OPEN, /* Received and verified handshake */
     CWR_WS_CLOSING, /* Sent closing packet */
     CWR_WS_CLOSED, /* Closing handshake is done */
-    CWR_WS_STATE_HANDSHAKE_FAILED
+    CWR_WS_FAILED
 } cwr_ws_state_t;
+
+#define CWR_WS_H_STATUS_OK          (1)
+#define CWR_WS_H_UPGRADE_OK         (1 << 1)
+#define CWR_WS_H_ACCEPT_OK          (1 << 2)
+#define CWR_WS_H_CONNECTION_OK      (1 << 3)
+#define CWR_WS_H_HANDSHAKE_ERR      (1 << 5)
+#define CWR_WS_H_WANT_REDIRECT      (1 << 6)
+#define CWR_WS_H_HAS_REDIRECT       (1 << 7)
+
+#define CWR_WS_H_SUCCESSFUL         (CWR_WS_H_STATUS_OK | CWR_WS_H_UPGRADE_OK | CWR_WS_H_ACCEPT_OK | CWR_WS_H_CONNECTION_OK)
 
 struct cwr_ws_s {
     void *data; /* Opaque data */
     cwr_ws_link_t io; /* IO functions */
     cwr_malloc_ctx_t *m_ctx; /* Memory context */
 
+    cwr_ws_data_cb on_want_redirect; /* Fail the WebSocket Connection and retry with new location */
+    cwr_ws_cb on_fail; /* Fail the WebSocket Connection */
     cwr_ws_cb on_close; /* ws connection has closed */
+    cwr_ws_cb on_open;
+    cwr_ws_data_cb on_message;
     cwr_ws_cb on_message_complete; /* inbound message is completely read */
 
     cwr_linkable_t *stream; /* Underlying TCP/TLS implementation */
@@ -68,7 +83,7 @@ struct cwr_ws_s {
     uint8_t key[sizeof(CWR_WS_KEY)]; /* Key used in handshake */
     uint8_t key_hash[28]; /* base64 encoded SHA1 hash of key for verification purposes */
 
-    //cwr_ws_header_state_t header_state;
+    uint64_t header_state;
     void *(*on_header_value)(cwr_ws_t *ws);
     void *(*on_header_field)(cwr_ws_t *ws);
     cwr_buf_t header_field;

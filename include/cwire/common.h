@@ -37,6 +37,8 @@ typedef enum cwr_err {
     CWR_E_OK = 0,
     CWR_E_INTERNAL,
     CWR_E_UNDERLYING,
+    CWR_E_WS,
+    CWR_E_LLHTTP,
     CWR_E_USER,
     CWR_E_UV,
     CWR_E_SSL,
@@ -59,6 +61,16 @@ typedef enum cwr_usr_err {
     CWR_E_USER_WS_FRAGMENT,
     CWR_E_USER_WS_PROTOCOL_VAL
 } cwr_usr_err_t;
+
+typedef enum cwr_ws_err {
+    CWR_E_WS_OK = 0,
+    CWR_E_WS_INVALID_STATUS,
+    CWR_E_WS_REDIRECT,
+    CWR_E_WS_INVALID_CONNECTION_HEADER,
+    CWR_E_WS_INVALID_UPGRADE_HEADER,
+    CWR_E_WS_INVALID_SHA1_KEY,
+    CWR_E_WS_INVALID_PROTOCOL
+} cwr_ws_err_t;
 
 #define DEF_CWR_LINK_IO_SIGNATURE(classname, type) \
     typedef int (*cwr_ ## classname ## _io)(type *, const void *, size_t)

@@ -3,7 +3,7 @@
 
 #include <cwire/no_malloc.h>
 
-const char *url = "https://93.184.216.34/";
+const char *url = "wss://gateway.discord.gg/?v=9&encoding=json";
 const char *request = 
     "GET / HTTP/1.1\r\n"
     "Host: 93.184.216.34\r\n"
@@ -12,9 +12,10 @@ const char *request =
 
 static void cwr__connect_cb (cwr_sock_t *sock)
 {
+    cwr_tls_t *tls = sock->data;
     puts("CONNECT");
-    cwr_tls_connect(sock->data);
-    cwr_tls_write(sock->data, request, strlen(request));
+    cwr_tls_connect(tls);
+    cwr_ws_connect(tls->data, url, strlen(url));
     cwr_sock_read_start(sock);
 }
 
@@ -37,19 +38,20 @@ static void cwr__tls_closed (cwr_tls_t *tls)
 }
 
 int main () {
-    puts("OK");
     cwr_openssl_init();
     cwr_malloc_ctx_t malloc_ctx;
     cwr_malloc_ctx_new(&malloc_ctx);
     cwr_sock_t sock;
-/*
     cwr_tls_t tls;
+    cwr_ws_t ws;
     cwr_sock_init(&malloc_ctx, uv_default_loop(), &sock);
     sock.io.on_error = cwr__err;
     sock.on_connect = cwr__connect_cb;
     cwr_tls_init(&malloc_ctx, (cwr_linkable_t*)&sock, &tls);
+    cwr_ws_init(&malloc_ctx, (cwr_linkable_t*)&tls, &ws);
     sock.data = &tls;
-    tls.io.reader = cwr__reader;
+    tls.data = &ws;
+    //tls.io.reader = cwr__reader;
     tls.on_close = cwr__tls_closed;
     cwr_sock_connect_url(&sock, url, strlen(url));
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
@@ -57,14 +59,4 @@ int main () {
     cwr_sec_ctx_free(&tls.sec_ctx);
     puts("DONE AND DONE");
     cwr_malloc_ctx_dump_leaks(&malloc_ctx);
-*/
-    printf("%zu\n", cwr_base64_encoded_size(20, CWR_B64_MODE_NORMAL));
-    cwr_ws_t ws;
-    cwr_ws_init(&malloc_ctx, (cwr_linkable_t*)&sock, &ws);
-    const char *prots[] = {"hello", "world", NULL};
-    const char *heads[] = {"User-Agent", "cwire/0.0.0", "Origin", "http://example.com", NULL};
-    ws.protocols = prots;
-    ws.handshake_headers = heads;
-
-    cwr_ws_connect(&ws, "wss://gateway.discord.gg/?v=9&encoding=json", strlen("wss://gateway.discord.gg/?v=9&encoding=json"));
 }
