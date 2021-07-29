@@ -87,6 +87,74 @@ void cwr__ws_fail_connection (cwr_ws_t *ws, uint16_t status_code)
     // TODO:
 }
 
+static
+void cwr__ws_mask (uint8_t mask[4], uint8_t *payload, size_t len)
+{
+    size_t new_len = len;
+    uint32_t *mask_fast = (uint32_t *)mask;
+    size_t i = 0;
+    while (new_len >= 4)
+    {
+        uint32_t *chunk = (uint32_t *)&payload[i];
+        *chunk ^= *mask_fast;
+        new_len -= 4;
+        i += 4;
+    }
+    
+    for (int x = 0; x < new_len; x++)
+    {
+        payload[i + x] ^= mask[x % 4];
+    }
+}
+
+static inline
+void cwr__ws_handle_message (cwr_ws_t *ws, char *off)
+{
+    if (ws->mask)
+        cwr__ws_mask(ws->masking_key, (uint8_t *)off, ws->payload_len);
+
+    fputs("\n\nSERVER: ", stdout);
+    fwrite(off, 1, ws->payload_len, stdout);
+    fflush(stdout);
+
+    switch (ws->opcode)
+    {
+    case CWR_WS_OP_CONTINUATION:
+    case CWR_WS_OP_TEXT: // TODO: utf-8 validation
+    case CWR_WS_OP_BINARY:
+        {
+            if (ws->on_message && (ws->payload_len > 0))
+                ws->on_message(ws, off, ws->payload_len);
+            
+            if (ws->fin)
+                if (ws->on_message_complete)
+                    ws->on_message_complete(ws);
+        }
+        break;
+        
+    case CWR_WS_OP_CLOSE:
+        {
+
+        }
+        break;
+        
+    case CWR_WS_OP_PING:
+        {
+
+        }
+        break;
+        
+    case CWR_WS_OP_PONG:
+        {
+
+        }
+        break;
+    
+    default:
+        break;
+    }
+}
+
 int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
 {
     cwr_ws_t *ws = (cwr_ws_t *)stream->io.child;
@@ -97,6 +165,8 @@ int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
     {
         llhttp_errno_t err = llhttp_execute(&ws->http_parser, dat, nbytes);
         if (err != HPE_OK) {
+            if (err == HPE_PAUSED_UPGRADE)
+                return 0;
             ws->io.err_type = CWR_E_LLHTTP;
             ws->io.err_code = err;
             if (ws->io.on_error)
@@ -128,11 +198,63 @@ new_state:
     {
     case CWR_WS_S_NEW:
         {
-            char opcode = ((char *)off)[0] & ~0b11110000;
-            // if (opcode == CWR_WS_OP_CONTINUATION) 
+            uint8_t opcode = ((uint8_t *)off)[0] & ~0b11110000;
+
+            /* if fragmented and data frame is received */
+            if (ws->is_fragmented && !(opcode & 0b1000) && (opcode != CWR_WS_OP_CONTINUATION))
+            {
+                /**
+                 * The fragments of one message MUST NOT be interleaved between the
+                 * fragments of another message
+                 * See https://www.rfc-editor.org/rfc/rfc6455.html#page-35
+                 */
+                ws->io.err_type = CWR_E_WS;
+                ws->io.err_code = CWR_E_WS_INTERLEAVED_FRAGMENT;
+                cwr__ws_fail_connection(ws, CWR_WS_STATUS_PROTOCOL_ERROR);
+                return 0;
+            }
+
+            /* We're not currently receiving a fragmented message but received a continuation */
+            if (!ws->is_fragmented && (opcode == CWR_WS_OP_CONTINUATION))
+            {
+                ws->io.err_type = CWR_E_WS;
+                ws->io.err_code = CWR_E_WS_CONTINUATION_UNFRAGMENTED;
+                cwr__ws_fail_connection(ws, CWR_WS_STATUS_PROTOCOL_ERROR);
+                return 0;
+            }
+
+            uint8_t fin = ((uint8_t *)off)[0] & (1 << 7);
+
+            /* We're starting a new fragmented message */
+            if (ws->fin && !fin)
+            {
+                if (!(opcode & 0b1000)) /* data frame */
+                {
+                    /* This will happen if a control frame was in the middle of a fragment */
+                    if (opcode != CWR_WS_OP_CONTINUATION) 
+                    {
+                        ws->opcode_cont = opcode;
+                        ws->is_fragmented = 1;
+                    }
+                }
+                else /* control frames cannot be fragmented */
+                {
+                    ws->io.err_type = CWR_E_WS;
+                    ws->io.err_code = CWR_E_WS_FRAGMENTED_CONTROL;
+                    cwr__ws_fail_connection(ws, CWR_WS_STATUS_PROTOCOL_ERROR);
+                    return 0;
+                }
+            }
+
+            /* End of fragmented message */
+            if (fin && (opcode == CWR_WS_OP_CONTINUATION))
+            {
+                ws->is_fragmented = 0;
+            }
+
+            ws->fin = fin;
             ws->opcode = opcode;
-            ws->fin = ((char *)off)[0] & (1 << 7);
-            if (((char *)off)[0] & 0b01110000) // check if a reserved bit is set
+            if (((uint8_t *)off)[0] & 0b01110000) // check if a reserved bit is set
             {
                 ws->io.err_type = CWR_E_WS;
                 ws->io.err_code = CWR_E_WS_RESERVED_BIT_SET;
@@ -148,8 +270,8 @@ new_state:
 
     case CWR_WS_S_OP:
         {
-            char payload_len = ((char *)off)[0] & ~(1 << 7);
-            ws->mask = ((char *)off)[0] & (1 << 7);
+            uint8_t payload_len = ((uint8_t *)off)[0] & ~(1 << 7);
+            ws->mask = ((uint8_t *)off)[0] & (1 << 7);
             if (ws->client_mode && ws->mask)
             {
                 ws->io.err_type = CWR_E_WS;
@@ -215,9 +337,7 @@ new_state:
             if (len < 4)
                 goto consume_used;
 
-            uint32_t masking_key = 0;
-            memcpy(&masking_key, off, 4);
-            ws->masking_key = masking_key;
+            memcpy(ws->masking_key, off, 4);
             ws->intr_state = CWR_WS_S_PAYLOAD;
             off += 4;
             len -= 4;
@@ -230,11 +350,7 @@ new_state:
             if (len < ws->payload_len)
                 goto consume_used;
             
-            if (ws->on_message)
-                ws->on_message(ws, off, ws->payload_len);
-            
-            if (ws->fin)
-                ws->on_message_complete(ws);
+            cwr__ws_handle_message(ws, off);
 
             ws->intr_state = CWR_WS_S_NEW;
             off += ws->payload_len;
@@ -327,6 +443,8 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws)
     ws->stream = stream;
     ws->stream->io.child = (cwr_linkable_t *)ws;
     ws->stream->io.reader = cwr_ws_reader;
+
+    ws->fin = 1;
 
     llhttp_settings_init(&ws->http_parser_settings);
 

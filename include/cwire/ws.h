@@ -118,12 +118,14 @@ struct cwr_ws_s {
     cwr_buf_t buffer;
     /* Internal frame parsing state */
     cwr_ws_intr_state_t intr_state;
-    int client_mode;
-    char opcode;
-    char fin;
-    char mask;
+    uint8_t client_mode;
+    uint8_t is_fragmented;
+    uint8_t opcode;
+    uint8_t opcode_cont;
+    uint8_t fin;
+    uint8_t mask;
     uint64_t payload_len;
-    uint32_t masking_key;
+    uint8_t masking_key[4];
 
     cwr_ws_state_t state;
 };

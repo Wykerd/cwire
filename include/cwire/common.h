@@ -72,7 +72,10 @@ typedef enum cwr_ws_err {
     CWR_E_WS_INVALID_PROTOCOL,
     CWR_E_WS_RESERVED_BIT_SET,
     CWR_E_WS_SERVER_MASKING,
-    CWR_E_WS_PAYLOAD_LENGTH
+    CWR_E_WS_PAYLOAD_LENGTH,
+    CWR_E_WS_INTERLEAVED_FRAGMENT,
+    CWR_E_WS_CONTINUATION_UNFRAGMENTED,
+    CWR_E_WS_FRAGMENTED_CONTROL
 } cwr_ws_err_t;
 
 #define DEF_CWR_LINK_IO_SIGNATURE(classname, type) \
@@ -128,5 +131,7 @@ void *cwr_buf_resize (cwr_buf_t *buf, size_t size);
 void *cwr_buf_push_back (cwr_buf_t *buf, const char *src, size_t len);
 void cwr_buf_shift (cwr_buf_t *buf, size_t len);
 void cwr_buf_free (cwr_buf_t *buf);
+
+const char *cwr_utf8_check(const char *s, size_t len);
 
 #endif
