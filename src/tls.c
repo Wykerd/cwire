@@ -16,12 +16,6 @@ static int cwr__tls_flush_wbio (cwr_tls_t *tls)
             int wr = tls->sock->io.writer(tls->sock, buf, r);
             if (wr)
                 return wr;
-            if (tls->io.on_write)
-            {
-                wr = tls->io.on_write(tls, buf, r);
-                if (wr)
-                    return wr;
-            }
         }
         else if (!BIO_should_retry(tls->wbio))
         {
@@ -182,6 +176,14 @@ int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len)
     return cwr__tls_flush_enc_buf(tls);
 }
 
+static
+void cwr__tls_written (cwr_linkable_t *sock) 
+{
+    cwr_tls_t *tls = (cwr_tls_t *)sock->io.child;
+    if (tls->io.on_write)
+        tls->io.on_write(tls);
+}
+
 static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls)
 {
     tls->m_ctx = m_ctx;
@@ -198,6 +200,7 @@ static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr
     tls->sock = sock;
     tls->sock->io.reader = cwr_tls_reader;
     tls->sock->io.child = (cwr_linkable_t *)tls;
+    tls->sock->io.on_write = cwr__tls_written;
 
     if (!cwr_buf_malloc(&tls->enc_buf, tls->m_ctx, CWR_SSL_IO_BUF_SIZE))
     {

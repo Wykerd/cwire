@@ -22,7 +22,7 @@ static void cwr__sock_write_cb (uv_write_t* req, int status)
     }
 
     if (sock->io.on_write) 
-        sock->io.on_write(sock, req->bufs->base, req->bufs->len);
+        sock->io.on_write(sock);
 
 exit:
     cwr_free(sock->m_ctx, req);
@@ -62,7 +62,7 @@ int cwr_sock_writer (cwr_sock_t *sock, const void *buf, size_t len)
 
 int cwr_sock_init (cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock) 
 {
-    memset(sock, 1, sizeof(cwr_sock_t));
+    memset(sock, 0, sizeof(cwr_sock_t));
     int r;
     sock->loop = loop;
     sock->m_ctx = m_ctx;
@@ -362,7 +362,7 @@ static void cwr__sock_read_cb (uv_stream_t *handle, ssize_t nread, const uv_buf_
         {
             if (sock->on_close)
                 sock->on_close(sock);
-                
+
             goto exit;
         }
         uv_read_stop(handle);
