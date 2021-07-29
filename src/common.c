@@ -264,6 +264,21 @@ void *cwr_buf_push_back (cwr_buf_t *buf, const char *src, size_t len)
     return sp; 
 }
 
+
+void *cwr_buf_push_front (cwr_buf_t *buf, const char *src, size_t len)
+{
+    if (buf->size < (buf->len + len))
+        if (!cwr_buf_resize(buf, buf->len + len))
+            return NULL;
+    for (size_t i = 0; i < buf->len; i++)
+        buf->base[buf->len - 1 + len - i] = buf->base[buf->len - 1 - i];
+    
+    memcpy(buf->base, src, len);
+    buf->len += len;
+
+    return buf->base;
+}
+
 void cwr_buf_shift (cwr_buf_t *buf, size_t len)
 {
     memmove(buf->base, buf->base+len, buf->len-len);

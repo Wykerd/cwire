@@ -56,6 +56,7 @@ typedef enum cwr_intr_err {
 typedef enum cwr_usr_err {
     CWR_E_USER_OK = 0,
     CWR_E_USER_READER_ERROR,
+    CWR_E_USER_WRITER_ERROR,
     CWR_E_USER_HTTP_FIELD,
     CWR_E_USER_WS_INVALID_SCHEMA,
     CWR_E_USER_WS_FRAGMENT,
@@ -77,7 +78,8 @@ typedef enum cwr_ws_err {
     CWR_E_WS_CONTINUATION_UNFRAGMENTED,
     CWR_E_WS_FRAGMENTED_CONTROL,
     CWR_E_WS_UNKNOWN_OPCODE,
-    CWR_E_WS_CONTROL_FRAME_LEN
+    CWR_E_WS_CONTROL_FRAME_LEN,
+    CWR_E_WS_INVALID_UTF8
 } cwr_ws_err_t;
 
 #define DEF_CWR_LINK_IO_SIGNATURE(classname, type) \
@@ -99,7 +101,7 @@ typedef struct cwr_linkable_s cwr_linkable_t;
         cwr_ ## classname ## _io writer;                                \
         cwr_ ## classname ## _cb on_error;                              \
         cwr_ ## classname ## _io on_read;                               \
-        cwr_ ## classname ## _io on_write;                              \
+        cwr_ ## classname ## _cb on_write;                              \
         cwr_err_t err_type;                                             \
         ssize_t err_code;                                               \
         size_t write_pending;                                           \
@@ -135,6 +137,7 @@ typedef struct cwr_buf_s {
 void *cwr_buf_malloc (cwr_buf_t *buf, cwr_malloc_ctx_t *ctx, size_t initial_size);
 void *cwr_buf_resize (cwr_buf_t *buf, size_t size);
 void *cwr_buf_push_back (cwr_buf_t *buf, const char *src, size_t len);
+void *cwr_buf_push_front (cwr_buf_t *buf, const char *src, size_t len);
 void cwr_buf_shift (cwr_buf_t *buf, size_t len);
 void cwr_buf_free (cwr_buf_t *buf);
 

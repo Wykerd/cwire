@@ -24,6 +24,7 @@ typedef struct cwr_ws_s cwr_ws_t;
 DEF_CWR_LINK_CLS(ws_link, cwr_ws_t);
 
 typedef void (*cwr_ws_cb)(cwr_ws_t *);
+typedef void (*cwr_ws_close_cb)(cwr_ws_t *, uint16_t status, const char *reason, size_t reason_len);
 typedef void (*cwr_ws_data_cb)(cwr_ws_t *, const char *, size_t);
 
 typedef enum cwr_ws_state {
@@ -79,13 +80,29 @@ struct cwr_ws_s {
     cwr_ws_data_cb on_want_redirect; /* Fail the WebSocket Connection and retry with new location */
     /**
      * Fail the WebSocket Connection
-     * the underlying stream MUST be closed in this callback
+     * the underlying stream SHOULD be closed in this callback
      */
     cwr_ws_cb on_fail; 
+    /**
+     * Called when a close frame is received.
+     * Useful for logging errors. Do not call shutdown or close
+     * methods from this callback. It is handled internally.
+     */
+    cwr_ws_close_cb on_receive_close;
+    /**
+     * The WebSocket Connection has been closed
+     * the underlying stream MAY be closed in this callback
+     * else you SHOULD wait for the server to close the connection
+     */
     cwr_ws_cb on_close; /* ws connection has closed */
     cwr_ws_cb on_open;
     cwr_ws_data_cb on_message;
     cwr_ws_cb on_message_complete; /* inbound message is completely read */
+    /**
+     * Called when a pong is received 
+     * Can be used to determine latency between a ping and a pong
+     */
+    cwr_ws_data_cb on_pong; 
 
     cwr_linkable_t *stream; /* Underlying TCP/TLS implementation */
 
@@ -120,6 +137,8 @@ struct cwr_ws_s {
     cwr_buf_t header_value;
 
     cwr_buf_t buffer;
+    cwr_buf_t write_queue; /* Stores the frames themself */
+    cwr_buf_t write_queue_len; /* Stores frame lengths */
     /* Internal frame parsing state */
     cwr_ws_intr_state_t intr_state;
     uint8_t opcode;
@@ -131,6 +150,7 @@ struct cwr_ws_s {
     /* Flags */
     uint8_t client_mode;
     uint8_t is_fragmented;
+    uint8_t requested_close;
 
     cwr_ws_state_t state;
 };
@@ -145,10 +165,12 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws);
  * This can be done by calling `cwr_tls_connect_with_sni` instead of `cwr_tls_connect`
  */
 int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len);
-int cwr_ws_send2 (cwr_ws_t *ws, const void *buf, size_t len, char opcode, int fin);
-int cwr_ws_send (cwr_ws_t *ws, const void *buf, size_t len, char opcode);
+int cwr_ws_ping (cwr_ws_t *ws, const char *data, uint8_t len);
+int cwr_ws_send2 (cwr_ws_t *ws, const char *data, size_t len, uint8_t opcode, int fin);
+int cwr_ws_send (cwr_ws_t *ws, const char *data, size_t len, uint8_t opcode);
+int cwr_ws_close2 (cwr_ws_t *ws, uint16_t status, const char *data, uint8_t len);
+int cwr_ws_close (cwr_ws_t *ws, uint16_t status);
 int cwr_ws_shutdown (cwr_ws_t *ws);
-#define cwr_ws_close(ws) cwr_ws_shutdown(ws)
 void cwr_ws_free (cwr_ws_t *ws);
 
 #endif

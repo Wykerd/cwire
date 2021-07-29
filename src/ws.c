@@ -14,11 +14,17 @@
 #  define be16toh(x) betoh16(x)
 #  define be32toh(x) betoh32(x)
 #  define be64toh(x) betoh64(x)
+#  define htobe16(x) htobe16(x)
+#  define htobe32(x) htobe32(x)
+#  define htobe64(x) htobe64(x)
 #elif defined(_MSC_VER)
 #  include <stdlib.h>
 #  define be16toh(x) _byteswap_ushort(x)
 #  define be32toh(x) _byteswap_ulong(x)
 #  define be64toh(x) _byteswap_uint64(x)
+#  define htobe16(x) _byteswap_ushort(x)
+#  define htobe32(x) _byteswap_ulong(x)
+#  define htobe64(x) _byteswap_uint64(x)
 #endif
 
 #include <cwire/no_malloc.h>
@@ -85,6 +91,7 @@ static
 void cwr__ws_fail_connection (cwr_ws_t *ws, uint16_t status_code)
 {
     // TODO:
+    puts("WANT FAIL");
 }
 
 static
@@ -107,13 +114,43 @@ void cwr__ws_mask (uint8_t mask[4], uint8_t *payload, size_t len)
     }
 }
 
+/* Immediately write the frame - skipping the write queue */
+static inline
+void cwr__ws_send_short_noq (cwr_ws_t *ws, uint8_t opcode, const void *data, uint8_t len)
+{
+    char frame[131] = { 0 };
+    frame[0] |= (1 << 7);
+    frame[0] |= opcode;
+    frame[1] |= len;
+    if (ws->client_mode)
+    {
+        frame[1] |= (1 << 7);
+        int r = RAND_bytes(&frame[2], 4);
+        if (unlikely(!r))
+            *((uint32_t *)&frame[2]) = rand(); // fallback to stdlib rand
+        memcpy(&frame[6], data, len);
+        cwr__ws_mask(&frame[2], &frame[6], len);
+    }
+    else
+        memcpy(&frame[2], data, len);
+
+    int r = ws->stream->io.writer(ws->stream, frame, (ws->client_mode ? 6 : 2) + len);
+    if (r)
+    {
+        ws->io.err_type = CWR_E_UNDERLYING;
+        ws->io.err_type = CWR_E_USER_WRITER_ERROR;
+        if (ws->io.on_error)
+            ws->io.on_error(ws);
+    }
+}
+
 static inline
 void cwr__ws_handle_message (cwr_ws_t *ws, char *off)
 {
     if (ws->mask)
         cwr__ws_mask(ws->masking_key, (uint8_t *)off, ws->payload_len);
 
-    fputs("\n\nSERVER: ", stdout);
+    fputs("\nSERVER MESSAGE: ", stdout);
     fwrite(off, 1, ws->payload_len, stdout);
     fflush(stdout);
 
@@ -134,20 +171,50 @@ void cwr__ws_handle_message (cwr_ws_t *ws, char *off)
         
     case CWR_WS_OP_CLOSE:
         {
-            ws->state = CWR_WS_CLOSING;
-            
+            uint16_t net_status = 0, status = 0;
+            if (ws->payload_len >= 2)
+            {
+                memcpy(&net_status, off, 2);
+                status = be16toh(net_status);
+                if (ws->on_receive_close)
+                    ws->on_receive_close(ws, status, off + 2, ws->payload_len - 2);
+            }
+            else if (ws->on_receive_close)
+                ws->on_receive_close(ws, 0, NULL, 0);
+
+            /* We've already sent a close frame */
+            if (ws->state == CWR_WS_CLOSING)
+            {
+                /* Close handshake is done */
+                ws->state = CWR_WS_CLOSED;
+                if (ws->on_close)
+                    ws->on_close(ws);
+            }
+            else /* close handshake response */
+            {
+                ws->state = CWR_WS_CLOSING;
+                /* Send a close frame */
+                if (net_status)
+                    cwr__ws_send_short_noq(ws, CWR_WS_OP_CLOSE, &net_status, 2);
+                else 
+                    cwr__ws_send_short_noq(ws, CWR_WS_OP_CLOSE, NULL, 0);
+            }
         }
         break;
         
     case CWR_WS_OP_PING:
         {
-
+            puts("\nPING");
+            cwr__ws_send_short_noq(ws, CWR_WS_OP_PONG, off, ws->payload_len);
         }
         break;
         
     case CWR_WS_OP_PONG:
         {
-
+            puts("\nPONG");
+            /* We don't respond to a pong */
+            if (ws->on_pong)
+                ws->on_pong(ws, off, ws->payload_len);
         }
         break;
     
@@ -165,6 +232,7 @@ int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
 {
     cwr_ws_t *ws = (cwr_ws_t *)stream->io.child;
 
+    fputs("\nSERVER DATA: ", stdout);
     fwrite(dat, 1, nbytes, stdout);
 
     if (ws->state == CWR_WS_CONNECTING)
@@ -202,7 +270,7 @@ int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
     size_t len = ws->buffer.len;
 new_state:
     if (len == 0)
-        return 0;
+        goto consume_used;
 
     switch (ws->intr_state)
     {
@@ -450,6 +518,50 @@ oom:
     return 0;
 }
 
+static 
+void cwr__ws_written (cwr_linkable_t *stream)
+{
+    cwr_ws_t *ws = (cwr_ws_t *)stream->io.child;
+    if (!cwr_linkable_has_pending_write(stream))
+    {
+        switch (ws->state)
+        {
+        /* we can now write the next frame */
+        case CWR_WS_CLOSING:
+            {
+                if (!ws->requested_close)
+                {
+                    ws->state = CWR_WS_CLOSED;
+                    if (ws->on_close)
+                        ws->on_close(ws);
+                    break;
+                }
+            }
+        case CWR_WS_OPEN: 
+            {
+                if (ws->write_queue_len.len)
+                {
+                    size_t *len = (size_t *)ws->write_queue_len.base;
+                    cwr_buf_shift(&ws->write_queue_len, sizeof(size_t));
+                    int r = stream->io.writer(stream, ws->write_queue.base, *len);
+                    cwr_buf_shift(&ws->write_queue, *len);
+                    if (r)
+                    {
+                        ws->io.err_type = CWR_E_UNDERLYING;
+                        ws->io.err_type = CWR_E_USER_WRITER_ERROR;
+                        if (ws->io.on_error)
+                            ws->io.on_error(ws);
+                    }
+                }
+            }
+            break;
+        
+        default:
+            break;
+        }
+    }
+}
+
 int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws)
 {
     memset(ws, 0, sizeof(cwr_ws_t));
@@ -461,7 +573,7 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws)
     ws->stream = stream;
     ws->stream->io.child = (cwr_linkable_t *)ws;
     ws->stream->io.reader = cwr_ws_reader;
-    ws->stream->io.on_write = NULL;
+    ws->stream->io.on_write = cwr__ws_written;
 
     ws->fin = 1;
 
@@ -807,6 +919,11 @@ int cwr__ws_hsc_complete (llhttp_t *ll)
         goto cleanup;
     }
     ws->state = CWR_WS_OPEN;
+
+    cwr_ws_ping(ws, "HELLO", 5);
+    cwr_ws_ping(ws, "HEwwO", 5);
+    cwr_ws_ping(ws, "HEuuO", 5);
+
     if (ws->on_open)
         ws->on_open(ws);
 cleanup:
@@ -941,19 +1058,59 @@ int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len)
     return cwr__ws_handshake(ws);
 }
 
-int cwr_ws_send2 (cwr_ws_t *ws, const void *buf, size_t len, char opcode, int fin)
+int cwr_ws_ping (cwr_ws_t *ws, const char *data, uint8_t len)
+{
+    if (len > 125)
+    {
+        ws->io.err_type = CWR_E_WS;
+        ws->io.err_code = CWR_E_WS_CONTROL_FRAME_LEN;
+        return CWR_E_WS_CONTROL_FRAME_LEN;
+    }
+    cwr__ws_send_short_noq(ws, CWR_WS_OP_PING, data, len);
+}
+
+int cwr_ws_send2 (cwr_ws_t *ws, const char *data, size_t len, uint8_t opcode, int fin)
 {
 
 }
 
-int cwr_ws_send (cwr_ws_t *ws, const void *buf, size_t len, char opcode)
+int cwr_ws_send (cwr_ws_t *ws, const char *data, size_t len, uint8_t opcode)
 {
 
+}
+
+int cwr_ws_close2 (cwr_ws_t *ws, uint16_t status, const char *data, uint8_t len)
+{
+    if (len > 123)
+    {
+        ws->io.err_type = CWR_E_WS;
+        ws->io.err_code = CWR_E_WS_CONTROL_FRAME_LEN;
+        return CWR_E_WS_CONTROL_FRAME_LEN;
+    }
+    if (cwr_utf8_check(data, len)) /* must be utf8 */
+    {
+        ws->io.err_type = CWR_E_WS;
+        ws->io.err_code = CWR_E_WS_INVALID_UTF8;
+        return CWR_E_WS_INVALID_UTF8;
+    }
+    char payload[125] = { 0 };
+    uint16_t net_status = htobe16(status);
+    memcpy(payload, &net_status, 2);
+    memcpy(&payload[2], data, len);
+    return cwr_ws_send(ws, payload, 2 + len, CWR_WS_OP_CLOSE);
+}
+
+int cwr_ws_close (cwr_ws_t *ws, uint16_t status)
+{
+    char payload[2] = { 0 };
+    uint16_t net_status = htobe16(status);
+    memcpy(payload, &net_status, 2);
+    return cwr_ws_send(ws, payload, 2, CWR_WS_OP_CLOSE);
 }
 
 int cwr_ws_shutdown (cwr_ws_t *ws)
 {
-
+    return cwr_ws_close(ws, CWR_WS_STATUS_NORMAL_CLOSURE);
 }
 
 void cwr_ws_free (cwr_ws_t *ws)
