@@ -145,7 +145,8 @@ int cwr_tls_reader (cwr_linkable_t *sock, const void *dat, size_t nbytes)
                 break;
         } while (r > 0);
 
-        if ((SSL_get_shutdown(tls->ssl) & SSL_RECEIVED_SHUTDOWN) || (SSL_get_shutdown(tls->ssl) & SSL_SENT_SHUTDOWN))
+        if ((SSL_get_shutdown(tls->ssl) & SSL_RECEIVED_SHUTDOWN) ||
+            (SSL_get_shutdown(tls->ssl) & SSL_SENT_SHUTDOWN))
         {
             /* Shut down */
             if (tls->on_close)
