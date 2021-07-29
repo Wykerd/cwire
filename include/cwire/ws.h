@@ -77,7 +77,11 @@ struct cwr_ws_s {
     cwr_malloc_ctx_t *m_ctx; /* Memory context */
 
     cwr_ws_data_cb on_want_redirect; /* Fail the WebSocket Connection and retry with new location */
-    cwr_ws_cb on_fail; /* Fail the WebSocket Connection */
+    /**
+     * Fail the WebSocket Connection
+     * the underlying stream MUST be closed in this callback
+     */
+    cwr_ws_cb on_fail; 
     cwr_ws_cb on_close; /* ws connection has closed */
     cwr_ws_cb on_open;
     cwr_ws_data_cb on_message;
@@ -103,8 +107,8 @@ struct cwr_ws_s {
 
     /* WebSocket URI */
     int is_secure;
-    char *host_name; /* TODO: FREE */
-    char *resource_name; /* TODO: FREE */
+    char *host_name;
+    char *resource_name;
 
     uint8_t key[sizeof(CWR_WS_KEY)]; /* Key used in handshake */
     uint8_t key_hash[28]; /* base64 encoded SHA1 hash of key for verification purposes */
@@ -118,14 +122,15 @@ struct cwr_ws_s {
     cwr_buf_t buffer;
     /* Internal frame parsing state */
     cwr_ws_intr_state_t intr_state;
-    uint8_t client_mode;
-    uint8_t is_fragmented;
     uint8_t opcode;
     uint8_t opcode_cont;
     uint8_t fin;
     uint8_t mask;
     uint64_t payload_len;
     uint8_t masking_key[4];
+    /* Flags */
+    uint8_t client_mode;
+    uint8_t is_fragmented;
 
     cwr_ws_state_t state;
 };
@@ -140,8 +145,10 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws);
  * This can be done by calling `cwr_tls_connect_with_sni` instead of `cwr_tls_connect`
  */
 int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len);
+int cwr_ws_send2 (cwr_ws_t *ws, const void *buf, size_t len, char opcode, int fin);
 int cwr_ws_send (cwr_ws_t *ws, const void *buf, size_t len, char opcode);
 int cwr_ws_shutdown (cwr_ws_t *ws);
+#define cwr_ws_close(ws) cwr_ws_shutdown(ws)
 void cwr_ws_free (cwr_ws_t *ws);
 
 #endif

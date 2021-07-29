@@ -75,7 +75,9 @@ typedef enum cwr_ws_err {
     CWR_E_WS_PAYLOAD_LENGTH,
     CWR_E_WS_INTERLEAVED_FRAGMENT,
     CWR_E_WS_CONTINUATION_UNFRAGMENTED,
-    CWR_E_WS_FRAGMENTED_CONTROL
+    CWR_E_WS_FRAGMENTED_CONTROL,
+    CWR_E_WS_UNKNOWN_OPCODE,
+    CWR_E_WS_CONTROL_FRAME_LEN
 } cwr_ws_err_t;
 
 #define DEF_CWR_LINK_IO_SIGNATURE(classname, type) \
@@ -86,12 +88,13 @@ typedef enum cwr_ws_err {
 
 typedef struct cwr_linkable_s cwr_linkable_t;
 
-#define DEF_CWR_LINK_CLS(classname, parent) \
+#define DEF_CWR_LINK_CLS(classname, _parent) \
     typedef struct cwr_ ## classname ## _s cwr_ ## classname ## _t;     \
-    DEF_CWR_LINK_IO_SIGNATURE(classname, parent);                       \
-    DEF_CWR_LINK_CB_SIGNATURE(classname, parent);                       \
+    DEF_CWR_LINK_IO_SIGNATURE(classname, _parent);                      \
+    DEF_CWR_LINK_CB_SIGNATURE(classname, _parent);                      \
     struct cwr_ ## classname ## _s {                                    \
         cwr_linkable_t *child;                                          \
+        cwr_linkable_t *parent;                                         \
         cwr_ ## classname ## _io reader;                                \
         cwr_ ## classname ## _io writer;                                \
         cwr_ ## classname ## _cb on_error;                              \
@@ -99,6 +102,7 @@ typedef struct cwr_linkable_s cwr_linkable_t;
         cwr_ ## classname ## _io on_write;                              \
         cwr_err_t err_type;                                             \
         ssize_t err_code;                                               \
+        size_t write_pending;                                           \
     }
 
 DEF_CWR_LINK_CLS(link, cwr_linkable_t);
@@ -107,6 +111,8 @@ struct cwr_linkable_s {
     void *data;
     cwr_link_t io;
 };
+
+int cwr_linkable_has_pending_write(cwr_linkable_t *link);
 
 const char *cwr_err_get_str(cwr_linkable_t *link);
 

@@ -193,6 +193,15 @@ static const char *internal_errors[] = {
 
 #include <openssl/err.h>
 
+int cwr_linkable_has_pending_write(cwr_linkable_t *link)
+{
+    if (link->io.write_pending)
+        return 1;
+    if (link->io.parent)
+        return cwr_linkable_has_pending_write(link->io.parent);
+    return 0;
+}
+
 const char *cwr_err_get_str(cwr_linkable_t *link)
 {
     switch (link->io.err_type)

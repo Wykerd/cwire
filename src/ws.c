@@ -134,7 +134,8 @@ void cwr__ws_handle_message (cwr_ws_t *ws, char *off)
         
     case CWR_WS_OP_CLOSE:
         {
-
+            ws->state = CWR_WS_CLOSING;
+            
         }
         break;
         
@@ -151,6 +152,11 @@ void cwr__ws_handle_message (cwr_ws_t *ws, char *off)
         break;
     
     default:
+        {
+            ws->io.err_type = CWR_E_WS;
+            ws->io.err_code = CWR_E_WS_UNKNOWN_OPCODE;
+            cwr__ws_fail_connection(ws, CWR_WS_STATUS_UNEXCEPTABLE_DATA);
+        }
         break;
     }
 }
@@ -178,6 +184,10 @@ int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
 
         return 0;
     }
+
+    if ((ws->state == CWR_WS_CLOSED) || 
+        (ws->state == CWR_WS_FAILED))
+        return 0;
 
     if (!cwr_buf_push_back(&ws->buffer, dat, nbytes)) 
     {
@@ -283,6 +293,13 @@ new_state:
             {
                 ws->payload_len = payload_len;
                 ws->intr_state = ws->mask ? CWR_WS_S_MASKING_KEY : CWR_WS_S_PAYLOAD;
+            }
+            else if ((payload_len > 125) && (ws->opcode & 0b1000))
+            {
+                ws->io.err_type = CWR_E_WS;
+                ws->io.err_code = CWR_E_WS_CONTROL_FRAME_LEN;
+                cwr__ws_fail_connection(ws, CWR_WS_STATUS_PROTOCOL_ERROR);
+                return 0;
             }
             else if (payload_len == 126)
                 ws->intr_state = CWR_WS_S_LEN16;
@@ -439,10 +456,12 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws)
     ws->m_ctx = m_ctx;
 
     ws->io.writer = cwr_ws_writer;
+    ws->io.parent = stream;
 
     ws->stream = stream;
     ws->stream->io.child = (cwr_linkable_t *)ws;
     ws->stream->io.reader = cwr_ws_reader;
+    ws->stream->io.on_write = NULL;
 
     ws->fin = 1;
 
@@ -922,10 +941,32 @@ int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len)
     return cwr__ws_handshake(ws);
 }
 
+int cwr_ws_send2 (cwr_ws_t *ws, const void *buf, size_t len, char opcode, int fin)
+{
+
+}
+
 int cwr_ws_send (cwr_ws_t *ws, const void *buf, size_t len, char opcode)
 {
 
 }
 
-int cwr_ws_shutdown (cwr_ws_t *ws);
-void cwr_ws_free (cwr_ws_t *ws);
+int cwr_ws_shutdown (cwr_ws_t *ws)
+{
+
+}
+
+void cwr_ws_free (cwr_ws_t *ws)
+{
+    if (ws->host_name)
+        cwr_free(ws->m_ctx, ws->host_name);
+    if (ws->resource_name)
+        cwr_free(ws->m_ctx, ws->resource_name);
+
+    if (ws->buffer.base)
+        cwr_buf_free(&ws->buffer);
+    if (ws->header_field.base)
+        cwr_buf_free(&ws->header_field);
+    if (ws->header_value.base)
+        cwr_buf_free(&ws->header_value);
+}

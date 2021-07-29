@@ -49,6 +49,7 @@ static int cwr__tls_flush_enc_buf(cwr_tls_t *tls)
         {
             /* consume bytes */
             cwr_buf_shift(&tls->enc_buf, r);
+            tls->io.write_pending = tls->enc_buf.len;
 
             r = cwr__tls_flush_wbio(tls);
             if (r)
@@ -172,6 +173,8 @@ int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len)
 {
     cwr_buf_push_back(&tls->enc_buf, (char *)buf, len);
 
+    tls->io.write_pending = tls->enc_buf.len;
+
     if (!SSL_is_init_finished(tls->ssl))
         return 0;
 
@@ -182,6 +185,9 @@ static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr
 {
     tls->m_ctx = m_ctx;
 
+    tls->io.write_pending = 0;
+    tls->io.child = NULL;
+    tls->io.parent = sock;
     tls->io.reader = NULL;
     tls->io.on_write = NULL;
     tls->io.on_read = NULL;

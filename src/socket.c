@@ -10,6 +10,8 @@ static void cwr__sock_write_cb (uv_write_t* req, int status)
 {
     cwr_sock_t *sock = req->handle->data;
 
+    sock->io.write_pending--;
+
     if (status != 0)
     {
         sock->io.err_type = CWR_E_UV;
@@ -53,11 +55,14 @@ int cwr_sock_writer (cwr_sock_t *sock, const void *buf, size_t len)
         return r;
     }
 
+    sock->io.write_pending++;
+
     return 0;
 }
 
 int cwr_sock_init (cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock) 
 {
+    memset(sock, 1, sizeof(cwr_sock_t));
     int r;
     sock->loop = loop;
     sock->m_ctx = m_ctx;
@@ -68,12 +73,6 @@ int cwr_sock_init (cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock)
 
     sock->h_tcp.data = sock;
 
-    sock->on_connect = NULL;
-    sock->on_close = NULL;
-    sock->io.reader = NULL;
-    sock->io.on_write = NULL;
-    sock->io.on_read = NULL;
-    sock->io.on_error = NULL;
     sock->io.writer = cwr_sock_writer;
 }
 
