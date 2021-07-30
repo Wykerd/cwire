@@ -84,7 +84,8 @@ int cwr__ws_header_includes (const char *needle, size_t needle_len, cwr_buf_t *h
 
 int cwr_ws_writer (cwr_ws_t *ws, const char *buf, size_t len) 
 {
-    return ws->stream->io.writer(ws->stream, buf, len);
+    assert(0 && "Direct writing is not allowed");
+    return 0;
 }
 
 static inline

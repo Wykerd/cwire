@@ -24,6 +24,8 @@ add_library(cwire
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tls.c
     # WEBSOCKET
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ws.c
+    # HTTP
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/http.c
 )
 
 set_target_properties(cwire PROPERTIES
