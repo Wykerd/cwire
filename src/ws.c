@@ -87,11 +87,17 @@ int cwr_ws_writer (cwr_ws_t *ws, const void *buf, size_t len)
     return ws->stream->io.writer(ws->stream, buf, len);
 }
 
-static
+static inline
 void cwr__ws_fail_connection (cwr_ws_t *ws, uint16_t status_code)
 {
-    // TODO:
-    puts("WANT FAIL");
+    int r = cwr_ws_close(ws, status_code);
+    if (r)
+    {
+        // just force close if fail
+        ws->state = CWR_WS_CLOSED;
+        if (ws->on_close)
+            ws->on_close(ws);
+    }
 }
 
 static
@@ -179,10 +185,6 @@ void cwr__ws_handle_message (cwr_ws_t *ws, char *off)
     if (ws->mask)
         cwr__ws_mask(ws->masking_key, (uint8_t *)off, ws->payload_len);
 
-    fputs("\nSERVER MESSAGE: ", stdout);
-    fwrite(off, 1, ws->payload_len, stdout);
-    fflush(stdout);
-
     switch (ws->opcode)
     {
     case CWR_WS_OP_CONTINUATION:
@@ -233,14 +235,12 @@ void cwr__ws_handle_message (cwr_ws_t *ws, char *off)
         
     case CWR_WS_OP_PING:
         {
-            puts("\nPING");
             cwr__ws_send_short_noq(ws, CWR_WS_OP_PONG, off, ws->payload_len);
         }
         break;
         
     case CWR_WS_OP_PONG:
         {
-            puts("\nPONG");
             /* We don't respond to a pong */
             if (ws->on_pong)
                 ws->on_pong(ws, off, ws->payload_len);
@@ -260,9 +260,6 @@ void cwr__ws_handle_message (cwr_ws_t *ws, char *off)
 int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
 {
     cwr_ws_t *ws = (cwr_ws_t *)stream->io.child;
-
-    fputs("\nSERVER DATA: ", stdout);
-    fwrite(dat, 1, nbytes, stdout);
 
     if (ws->state == CWR_WS_CONNECTING)
     {
@@ -298,13 +295,12 @@ int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
     char *off = ws->buffer.base;
     size_t len = ws->buffer.len;
 new_state:
-    if (len == 0)
-        goto consume_used;
-
     switch (ws->intr_state)
     {
     case CWR_WS_S_NEW:
         {
+            if (len == 0)
+                goto consume_used;
             uint8_t opcode = ((uint8_t *)off)[0] & ~0b11110000;
 
             /* if fragmented and data frame is received */
@@ -377,6 +373,8 @@ new_state:
 
     case CWR_WS_S_OP:
         {
+            if (len == 0)
+                goto consume_used;
             uint8_t payload_len = ((uint8_t *)off)[0] & ~(1 << 7);
             ws->mask = ((uint8_t *)off)[0] & (1 << 7);
             if (ws->client_mode && ws->mask)
@@ -550,7 +548,6 @@ oom:
 static 
 void cwr__ws_written (cwr_linkable_t *stream)
 {
-    puts("\nWROTE");
     cwr_ws_t *ws = (cwr_ws_t *)stream->io.child;
     if (!cwr_linkable_has_pending_write(stream))
     {
@@ -559,6 +556,7 @@ void cwr__ws_written (cwr_linkable_t *stream)
         /* we can now write the next frame */
         case CWR_WS_CLOSING:
             {
+                /* We just wrote the close frame */
                 if (!ws->requested_close)
                 {
                     ws->state = CWR_WS_CLOSED;
@@ -571,7 +569,6 @@ void cwr__ws_written (cwr_linkable_t *stream)
             {
                 if (ws->write_queue_len.len)
                 {
-                    puts("\nWriting frame");
                     size_t *len = (size_t *)ws->write_queue_len.base;
                     int r = stream->io.writer(stream, ws->write_queue.base, *len);
                     cwr_buf_shift(&ws->write_queue, *len);
@@ -782,8 +779,6 @@ err_ssl:
 
     ws->state = CWR_WS_CONNECTING;
 
-    fwrite(buf.base, 1, buf.len, stdout);
-
     cwr_buf_free(&buf);
 
     /* Generate SHA1 Hash for later use */
@@ -964,10 +959,6 @@ int cwr__ws_hsc_complete (llhttp_t *ll)
         goto cleanup;
     }
     ws->state = CWR_WS_OPEN;
-
-    cwr_ws_send2(ws, "HELLO", 5, CWR_WS_OP_PING, 1);
-    cwr_ws_send2(ws, "{\"op\":2,\"d\":{\"token\":\"\",\"intents\":513,\"properties\":{\"$os\":\"li", 61, CWR_WS_OP_TEXT, 0);
-    cwr_ws_send2(ws, "nux\",\"$browser\":\"my_library\",\"$device\":\"my_library\"}}}", 54, CWR_WS_OP_CONTINUATION, 1);
 
     if (ws->on_open)
         ws->on_open(ws);
@@ -1199,6 +1190,8 @@ int cwr_ws_close2 (cwr_ws_t *ws, uint16_t status, const char *data, uint8_t len)
     uint16_t net_status = htobe16(status);
     memcpy(payload, &net_status, 2);
     memcpy(&payload[2], data, len);
+    ws->requested_close = 1;
+    ws->state = CWR_WS_CLOSING;
     cwr__ws_send_short_noq(ws, CWR_WS_OP_CLOSE, payload, 2 + len);
     return CWR_E_WS_OK;
 }
@@ -1214,6 +1207,8 @@ int cwr_ws_close (cwr_ws_t *ws, uint16_t status)
     char payload[2] = { 0 };
     uint16_t net_status = htobe16(status);
     memcpy(payload, &net_status, 2);
+    ws->requested_close = 1;
+    ws->state = CWR_WS_CLOSING;
     cwr__ws_send_short_noq(ws, CWR_WS_OP_CLOSE, payload, 2);
     return CWR_E_WS_OK;
 }

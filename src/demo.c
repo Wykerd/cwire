@@ -37,6 +37,11 @@ static void cwr__tls_closed (cwr_tls_t *tls)
     cwr_sock_shutdown((cwr_sock_t*)tls->sock);
 }
 
+static void cwr__sock_closed (cwr_sock_t *tls)
+{
+    puts("\nSOCK HAS CLOSED");
+}
+
 int main () {
     cwr_openssl_init();
     cwr_malloc_ctx_t malloc_ctx;
@@ -53,10 +58,12 @@ int main () {
     tls.data = &ws;
     //tls.io.reader = cwr__reader;
     tls.on_close = cwr__tls_closed;
+    sock.on_close = cwr__sock_closed;
     cwr_sock_connect_url(&sock, url, strlen(url));
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
     cwr_tls_free(&tls);
     cwr_sec_ctx_free(&tls.sec_ctx);
     puts("DONE AND DONE");
+    cwr_ws_free(&ws);
     cwr_malloc_ctx_dump_leaks(&malloc_ctx);
 }
