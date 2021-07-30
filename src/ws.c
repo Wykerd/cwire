@@ -550,6 +550,7 @@ oom:
 static 
 void cwr__ws_written (cwr_linkable_t *stream)
 {
+    puts("\nWROTE");
     cwr_ws_t *ws = (cwr_ws_t *)stream->io.child;
     if (!cwr_linkable_has_pending_write(stream))
     {
@@ -572,9 +573,9 @@ void cwr__ws_written (cwr_linkable_t *stream)
                 {
                     puts("\nWriting frame");
                     size_t *len = (size_t *)ws->write_queue_len.base;
-                    cwr_buf_shift(&ws->write_queue_len, sizeof(size_t));
                     int r = stream->io.writer(stream, ws->write_queue.base, *len);
                     cwr_buf_shift(&ws->write_queue, *len);
+                    cwr_buf_shift(&ws->write_queue_len, sizeof(size_t));
                     if (r)
                     {
                         ws->io.err_type = CWR_E_UNDERLYING;
@@ -965,7 +966,8 @@ int cwr__ws_hsc_complete (llhttp_t *ll)
     ws->state = CWR_WS_OPEN;
 
     cwr_ws_send2(ws, "HELLO", 5, CWR_WS_OP_PING, 1);
-    cwr_ws_send2(ws, "{\"op\":2,\"d\":{\"token\":\"\",\"intents\":513,\"properties\":{\"$os\":\"linux\",\"$browser\":\"my_library\",\"$device\":\"my_library\"}}}", 174, CWR_WS_OP_TEXT, 1);
+    cwr_ws_send2(ws, "{\"op\":2,\"d\":{\"token\":\"\",\"intents\":513,\"properties\":{\"$os\":\"li", 61, CWR_WS_OP_TEXT, 0);
+    cwr_ws_send2(ws, "nux\",\"$browser\":\"my_library\",\"$device\":\"my_library\"}}}", 54, CWR_WS_OP_CONTINUATION, 1);
 
     if (ws->on_open)
         ws->on_open(ws);
