@@ -79,7 +79,8 @@ typedef enum cwr_ws_err {
     CWR_E_WS_FRAGMENTED_CONTROL,
     CWR_E_WS_UNKNOWN_OPCODE,
     CWR_E_WS_CONTROL_FRAME_LEN,
-    CWR_E_WS_INVALID_UTF8
+    CWR_E_WS_INVALID_UTF8,
+    CWR_W_WS_NOT_OPEN
 } cwr_ws_err_t;
 
 #define DEF_CWR_LINK_IO_SIGNATURE(classname, type) \

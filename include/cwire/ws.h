@@ -36,6 +36,8 @@ typedef enum cwr_ws_state {
     CWR_WS_FAILED
 } cwr_ws_state_t;
 
+#define CWR_WS_MAX_PAYLOAD 9223372036854775807
+
 #define CWR_WS_H_STATUS_OK          (1)
 #define CWR_WS_H_UPGRADE_OK         (1 << 1)
 #define CWR_WS_H_ACCEPT_OK          (1 << 2)
@@ -90,14 +92,21 @@ struct cwr_ws_s {
      */
     cwr_ws_close_cb on_receive_close;
     /**
-     * The WebSocket Connection has been closed
-     * the underlying stream MAY be closed in this callback
-     * else you SHOULD wait for the server to close the connection
+     * The WebSocket Close Handshake is Done
+     * See _Close the WebSocket Connection_ in the spec for correct
+     * closing of the underlying connection
+     * https://www.rfc-editor.org/rfc/rfc6455.html#page-41
      */
-    cwr_ws_cb on_close; /* ws connection has closed */
+    cwr_ws_cb on_close;
+    /**
+     * _The WebSocket Connection is Established_ 
+     */
     cwr_ws_cb on_open;
     cwr_ws_data_cb on_message;
-    cwr_ws_cb on_message_complete; /* inbound message is completely read */
+    /**
+     * _A WebSocket Message Has Been Received_ 
+     */
+    cwr_ws_cb on_message_complete; 
     /**
      * Called when a pong is received 
      * Can be used to determine latency between a ping and a pong

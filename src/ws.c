@@ -114,25 +114,54 @@ void cwr__ws_mask (uint8_t mask[4], uint8_t *payload, size_t len)
     }
 }
 
+static inline
+size_t cwr__ws_write_header (cwr_ws_t *ws, uint8_t opcode, char *frame, size_t len, int fin)
+{
+    int off = 1;
+    if (fin)
+        frame[0] |= (1 << 7);
+    frame[0] |= opcode;
+    if (len < 126)
+    {
+        frame[1] |= len;
+        off = 2;
+    }
+    else if (len <= 0xffff)
+    {
+        frame[1] |= 126;
+        uint16_t r_len = len;
+        r_len = htobe16(r_len);
+        memcpy(&frame[2], &r_len, 2);
+        off = 4;
+    }
+    else 
+    {
+        frame[1] |= 127;
+        uint64_t r_len = len;
+        r_len = htobe64(r_len);
+        memcpy(&frame[2], &r_len, 8);
+        off = 10;
+    }
+    if (ws->client_mode)
+    {
+        frame[1] |= (1 << 7);
+        int r = RAND_bytes(&frame[off], 4);
+        if (unlikely(!r))
+            *((uint32_t *)&frame[off]) = rand(); // fallback to stdlib rand
+        off += 4;
+    }
+    return off;
+}
+
 /* Immediately write the frame - skipping the write queue */
 static inline
 void cwr__ws_send_short_noq (cwr_ws_t *ws, uint8_t opcode, const void *data, uint8_t len)
 {
     char frame[131] = { 0 };
-    frame[0] |= (1 << 7);
-    frame[0] |= opcode;
-    frame[1] |= len;
+    size_t data_idx = cwr__ws_write_header(ws, opcode, frame, len, 1);
+    memcpy(&frame[data_idx], data, len);
     if (ws->client_mode)
-    {
-        frame[1] |= (1 << 7);
-        int r = RAND_bytes(&frame[2], 4);
-        if (unlikely(!r))
-            *((uint32_t *)&frame[2]) = rand(); // fallback to stdlib rand
-        memcpy(&frame[6], data, len);
-        cwr__ws_mask(&frame[2], &frame[6], len);
-    }
-    else
-        memcpy(&frame[2], data, len);
+        cwr__ws_mask(&frame[data_idx - 4], &frame[data_idx], len);
 
     int r = ws->stream->io.writer(ws->stream, frame, (ws->client_mode ? 6 : 2) + len);
     if (r)
@@ -541,6 +570,7 @@ void cwr__ws_written (cwr_linkable_t *stream)
             {
                 if (ws->write_queue_len.len)
                 {
+                    puts("\nWriting frame");
                     size_t *len = (size_t *)ws->write_queue_len.base;
                     cwr_buf_shift(&ws->write_queue_len, sizeof(size_t));
                     int r = stream->io.writer(stream, ws->write_queue.base, *len);
@@ -582,6 +612,20 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws)
     memcpy(ws->key, CWR_WS_KEY, sizeof(CWR_WS_KEY));
 
     if (!cwr_buf_malloc(&ws->buffer, m_ctx, 131))
+    {
+        ws->io.err_type = CWR_E_INTERNAL;
+        ws->io.err_code = CWR_E_INTERNAL_OOM;
+        return CWR_E_INTERNAL_OOM;
+    }
+
+    if (!cwr_buf_malloc(&ws->write_queue, m_ctx, 131))
+    {
+        ws->io.err_type = CWR_E_INTERNAL;
+        ws->io.err_code = CWR_E_INTERNAL_OOM;
+        return CWR_E_INTERNAL_OOM;
+    }
+
+    if (!cwr_buf_malloc(&ws->write_queue_len, m_ctx, sizeof(size_t)))
     {
         ws->io.err_type = CWR_E_INTERNAL;
         ws->io.err_code = CWR_E_INTERNAL_OOM;
@@ -920,9 +964,8 @@ int cwr__ws_hsc_complete (llhttp_t *ll)
     }
     ws->state = CWR_WS_OPEN;
 
-    cwr_ws_ping(ws, "HELLO", 5);
-    cwr_ws_ping(ws, "HEwwO", 5);
-    cwr_ws_ping(ws, "HEuuO", 5);
+    cwr_ws_send2(ws, "HELLO", 5, CWR_WS_OP_PING, 1);
+    cwr_ws_send2(ws, "{\"op\":2,\"d\":{\"token\":\"\",\"intents\":513,\"properties\":{\"$os\":\"linux\",\"$browser\":\"my_library\",\"$device\":\"my_library\"}}}", 174, CWR_WS_OP_TEXT, 1);
 
     if (ws->on_open)
         ws->on_open(ws);
@@ -1060,6 +1103,12 @@ int cwr_ws_connect (cwr_ws_t *ws, const char* uri, size_t uri_len)
 
 int cwr_ws_ping (cwr_ws_t *ws, const char *data, uint8_t len)
 {
+    if (ws->state != CWR_WS_OPEN)
+    {
+        ws->io.err_type = CWR_E_WS;
+        ws->io.err_code = CWR_W_WS_NOT_OPEN;
+        return CWR_W_WS_NOT_OPEN;
+    }
     if (len > 125)
     {
         ws->io.err_type = CWR_E_WS;
@@ -1067,20 +1116,71 @@ int cwr_ws_ping (cwr_ws_t *ws, const char *data, uint8_t len)
         return CWR_E_WS_CONTROL_FRAME_LEN;
     }
     cwr__ws_send_short_noq(ws, CWR_WS_OP_PING, data, len);
+    return CWR_E_WS_OK;
 }
 
 int cwr_ws_send2 (cwr_ws_t *ws, const char *data, size_t len, uint8_t opcode, int fin)
 {
-
+    if (ws->state != CWR_WS_OPEN)
+    {
+        ws->io.err_type = CWR_E_WS;
+        ws->io.err_code = CWR_W_WS_NOT_OPEN;
+        return CWR_W_WS_NOT_OPEN;
+    }
+    /* Data is too big, we must split it */
+    if (len & (uint64_t)(1ull << 63)) 
+    {
+        int r;
+        r = cwr_ws_send2(ws, data, CWR_WS_MAX_PAYLOAD, opcode, 0);
+        if (r)
+            return r;
+        r = cwr_ws_send2(ws, data + CWR_WS_MAX_PAYLOAD, len - CWR_WS_MAX_PAYLOAD, CWR_WS_OP_CONTINUATION, 1);
+        if (r)
+            return r;
+        return CWR_E_WS_OK;
+    }
+    
+    char frame[14] = { 0 };
+    size_t data_idx = cwr__ws_write_header(ws, opcode, frame, len, fin);
+    if (!cwr_buf_push_back(&ws->write_queue, frame, data_idx))
+    {
+        ws->io.err_type = CWR_E_INTERNAL;
+        ws->io.err_code = CWR_E_INTERNAL_OOM;
+        return CWR_E_INTERNAL_OOM;
+    }
+    size_t write_off = ws->write_queue.len;
+    if (!cwr_buf_push_back(&ws->write_queue, data, len))
+    {
+        ws->io.err_type = CWR_E_INTERNAL;
+        ws->io.err_code = CWR_E_INTERNAL_OOM;
+        return CWR_E_INTERNAL_OOM;
+    }
+    if (ws->client_mode)
+        cwr__ws_mask(&frame[data_idx - 4], &ws->write_queue.base[write_off], len);
+    data_idx += len;
+    if (!cwr_buf_push_back(&ws->write_queue_len, (const char *)&data_idx, sizeof(size_t)))
+    {
+        ws->io.err_type = CWR_E_INTERNAL;
+        ws->io.err_code = CWR_E_INTERNAL_OOM;
+        return CWR_E_INTERNAL_OOM;
+    }
+    cwr__ws_written(ws->stream); /* Trigger write if no pending frames */
+    return CWR_E_WS_OK;
 }
 
 int cwr_ws_send (cwr_ws_t *ws, const char *data, size_t len, uint8_t opcode)
 {
-
+    return cwr_ws_send2(ws, data, len, opcode, 1);
 }
 
 int cwr_ws_close2 (cwr_ws_t *ws, uint16_t status, const char *data, uint8_t len)
 {
+    if (ws->state != CWR_WS_OPEN)
+    {
+        ws->io.err_type = CWR_E_WS;
+        ws->io.err_code = CWR_W_WS_NOT_OPEN;
+        return CWR_W_WS_NOT_OPEN;
+    }
     if (len > 123)
     {
         ws->io.err_type = CWR_E_WS;
@@ -1097,15 +1197,23 @@ int cwr_ws_close2 (cwr_ws_t *ws, uint16_t status, const char *data, uint8_t len)
     uint16_t net_status = htobe16(status);
     memcpy(payload, &net_status, 2);
     memcpy(&payload[2], data, len);
-    return cwr_ws_send(ws, payload, 2 + len, CWR_WS_OP_CLOSE);
+    cwr__ws_send_short_noq(ws, CWR_WS_OP_CLOSE, payload, 2 + len);
+    return CWR_E_WS_OK;
 }
 
 int cwr_ws_close (cwr_ws_t *ws, uint16_t status)
 {
+    if (ws->state != CWR_WS_OPEN)
+    {
+        ws->io.err_type = CWR_E_WS;
+        ws->io.err_code = CWR_W_WS_NOT_OPEN;
+        return CWR_W_WS_NOT_OPEN;
+    }
     char payload[2] = { 0 };
     uint16_t net_status = htobe16(status);
     memcpy(payload, &net_status, 2);
-    return cwr_ws_send(ws, payload, 2, CWR_WS_OP_CLOSE);
+    cwr__ws_send_short_noq(ws, CWR_WS_OP_CLOSE, payload, 2);
+    return CWR_E_WS_OK;
 }
 
 int cwr_ws_shutdown (cwr_ws_t *ws)
@@ -1126,4 +1234,8 @@ void cwr_ws_free (cwr_ws_t *ws)
         cwr_buf_free(&ws->header_field);
     if (ws->header_value.base)
         cwr_buf_free(&ws->header_value);
+    if (ws->write_queue.base)
+        cwr_buf_free(&ws->write_queue);
+    if (ws->write_queue_len.base)
+        cwr_buf_free(&ws->write_queue_len);
 }
