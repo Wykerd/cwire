@@ -1,5 +1,10 @@
 # CWire
-A lightweight asynchronous networking library for C
+A lightweight asynchronous networking library for C.
+
+Includes:
+- TCP socket wrapper
+- TLS wrapper
+- Full RFC 6455 compliant WebSocket implementation
 
 # Dependencies
 
