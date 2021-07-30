@@ -3,10 +3,6 @@ cmake_minimum_required(VERSION 3.10)
 project(cwire LANGUAGES C VERSION 0.1.0)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-# Compiler Config
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)  
-
 # Build Options
 option(BUILD_SHARED_LIBS "Build shared libraries (rather than static ones)" ON)
 
@@ -37,7 +33,6 @@ set_target_properties(cwire PROPERTIES
 
 find_package(OpenSSL REQUIRED)
 find_package(UV REQUIRED)
-find_package(Threads REQUIRED)
 
 target_include_directories(cwire PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include 
@@ -53,8 +48,6 @@ target_link_libraries(cwire
     OpenSSL::Crypto 
     # Event Loop
     ${UV_LIBRARIES} 
-    # Theads
-    Threads::Threads
 )
 
 # DEMO

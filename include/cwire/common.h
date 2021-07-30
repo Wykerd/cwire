@@ -84,7 +84,7 @@ typedef enum cwr_ws_err {
 } cwr_ws_err_t;
 
 #define DEF_CWR_LINK_IO_SIGNATURE(classname, type) \
-    typedef int (*cwr_ ## classname ## _io)(type *, const void *, size_t)
+    typedef int (*cwr_ ## classname ## _io)(type *, const char *, size_t)
 
 #define DEF_CWR_LINK_CB_SIGNATURE(classname, type) \
     typedef void (*cwr_ ## classname ## _cb)(type *)

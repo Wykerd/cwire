@@ -80,7 +80,7 @@ int cwr__tls_handshake(cwr_tls_t *tls)
     return !((status == 0) || (status == SSL_ERROR_WANT_WRITE) || (status == SSL_ERROR_WANT_READ));
 }
 
-int cwr_tls_reader (cwr_linkable_t *sock, const void *dat, size_t nbytes)
+int cwr_tls_reader (cwr_linkable_t *sock, const char *dat, size_t nbytes)
 {
     cwr_tls_t *tls = (cwr_tls_t *)sock->io.child;
     char buf[CWR_SSL_IO_BUF_SIZE];
@@ -164,9 +164,9 @@ int cwr_tls_reader (cwr_linkable_t *sock, const void *dat, size_t nbytes)
     return 0;
 }
 
-int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len) 
+int cwr_tls_writer (cwr_tls_t *tls, const char *buf, size_t len) 
 {
-    cwr_buf_push_back(&tls->enc_buf, (char *)buf, len);
+    cwr_buf_push_back(&tls->enc_buf, buf, len);
 
     tls->io.write_pending = tls->enc_buf.len;
 

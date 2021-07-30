@@ -82,7 +82,7 @@ int cwr__ws_header_includes (const char *needle, size_t needle_len, cwr_buf_t *h
     return (header->len - off == needle_len) && !strncasecmp(needle, header->base + off, header->len - off);
 }
 
-int cwr_ws_writer (cwr_ws_t *ws, const void *buf, size_t len) 
+int cwr_ws_writer (cwr_ws_t *ws, const char *buf, size_t len) 
 {
     return ws->stream->io.writer(ws->stream, buf, len);
 }
@@ -257,7 +257,7 @@ void cwr__ws_handle_message (cwr_ws_t *ws, char *off)
     }
 }
 
-int cwr_ws_reader (cwr_linkable_t *stream, const void *dat, size_t nbytes)
+int cwr_ws_reader (cwr_linkable_t *stream, const char *dat, size_t nbytes)
 {
     cwr_ws_t *ws = (cwr_ws_t *)stream->io.child;
 

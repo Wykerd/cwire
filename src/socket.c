@@ -28,7 +28,7 @@ exit:
     cwr_free(sock->m_ctx, req);
 }
 
-int cwr_sock_writer (cwr_sock_t *sock, const void *buf, size_t len) 
+int cwr_sock_writer (cwr_sock_t *sock, const char *buf, size_t len) 
 {
     int r = 0;
 

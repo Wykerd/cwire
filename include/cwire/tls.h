@@ -31,8 +31,8 @@ struct cwr_tls_s {
     cwr_buf_t enc_buf; /* Queue of unencrypted write data */
 };
 
-int cwr_tls_reader (cwr_linkable_t *sock, const void *dat, size_t nbytes);
-int cwr_tls_writer (cwr_tls_t *tls, const void *buf, size_t len);
+int cwr_tls_reader (cwr_linkable_t *sock, const char *dat, size_t nbytes);
+int cwr_tls_writer (cwr_tls_t *tls, const char *buf, size_t len);
 unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx);
 unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls);
 int cwr_tls_write (cwr_tls_t *tls, const void *buf, size_t len);

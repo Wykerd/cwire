@@ -19,6 +19,7 @@ struct cwr_sock_s {
     uv_tcp_t h_tcp; /* UV TCP handle */
 };
 
+int cwr_sock_writer (cwr_sock_t *sock, const char *buf, size_t len);
 int cwr_sock_init (cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock);
 int cwr_sock_connect (cwr_sock_t *sock, struct sockaddr *addr);
 int cwr_sock_connect_host (cwr_sock_t *sock, const char *hostname, const char *port);

@@ -164,6 +164,8 @@ struct cwr_ws_s {
     cwr_ws_state_t state;
 };
 
+int cwr_ws_reader (cwr_linkable_t *stream, const char *dat, size_t nbytes);
+int cwr_ws_writer (cwr_ws_t *ws, const char *buf, size_t len);
 int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws);
 /**
  * Performs opening handshake.
