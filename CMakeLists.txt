@@ -1,10 +1,16 @@
-cmake_minimum_required(VERSION 3.11)
-
-set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+cmake_minimum_required(VERSION 3.10)
 
 project(cwire LANGUAGES C VERSION 0.1.0)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-add_library(cwire SHARED
+# Compiler Config
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)  
+
+# Build Options
+option(BUILD_SHARED_LIBS "Build shared libraries (rather than static ones)" ON)
+
+add_library(cwire
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/net.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/b64.c
