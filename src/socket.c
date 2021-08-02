@@ -362,8 +362,7 @@ static void cwr__sock_read_cb (uv_stream_t *handle, ssize_t nread, const uv_buf_
     {
         if (nread == UV_EOF)
         {
-            if (sock->on_close)
-                sock->on_close(sock);
+            cwr_sock_shutdown(sock);
 
             goto exit;
         }
