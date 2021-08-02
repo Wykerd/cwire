@@ -174,7 +174,7 @@ void cwr__ws_send_short_noq (cwr_ws_t *ws, uint8_t opcode, const void *data, uin
     if (r)
     {
         ws->io.err_type = CWR_E_UNDERLYING;
-        ws->io.err_type = CWR_E_USER_WRITER_ERROR;
+        ws->io.err_code = CWR_E_USER_WRITER_ERROR;
         if (ws->io.on_error)
             ws->io.on_error(ws);
     }
@@ -577,7 +577,7 @@ void cwr__ws_written (cwr_linkable_t *stream)
                     if (r)
                     {
                         ws->io.err_type = CWR_E_UNDERLYING;
-                        ws->io.err_type = CWR_E_USER_WRITER_ERROR;
+                        ws->io.err_code = CWR_E_USER_WRITER_ERROR;
                         if (ws->io.on_error)
                             ws->io.on_error(ws);
                     }
@@ -774,7 +774,7 @@ err_ssl:
         cwr_free(ws->m_ctx, ws->resource_name);
         cwr_buf_free(&buf);
         ws->io.err_type = CWR_E_UNDERLYING;
-        ws->io.err_code = r;
+        ws->io.err_code = CWR_E_USER_WRITER_ERROR;
         return r;
     } 
 

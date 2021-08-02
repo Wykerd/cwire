@@ -44,7 +44,7 @@ target_include_directories(cwire PUBLIC
     ${OPENSSL_INCLUDE_DIR}
 )
 
-target_link_libraries(cwire 
+target_link_libraries(cwire PUBLIC
     # TLS
     OpenSSL::SSL 
     OpenSSL::Crypto 

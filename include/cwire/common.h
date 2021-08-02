@@ -140,6 +140,8 @@ void *cwr_buf_resize (cwr_buf_t *buf, size_t size);
 void *cwr_buf_push_back (cwr_buf_t *buf, const char *src, size_t len);
 void *cwr_buf_push_front (cwr_buf_t *buf, const char *src, size_t len);
 void cwr_buf_shift (cwr_buf_t *buf, size_t len);
+void *__attribute__((format(printf, 2, 3))) cwr_buf_printf (cwr_buf_t *buf, const char *fmt, ...);
+void *cwr_buf_puts (cwr_buf_t *buf, const char *s);
 void cwr_buf_free (cwr_buf_t *buf);
 
 const char *cwr_utf8_check(const char *s, size_t len);

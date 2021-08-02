@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 /* Memory allocation implementation is from QuickJS, 
  * which is licenced under the MIT license. It is available here:
@@ -183,6 +184,7 @@ void *cwr_mallocz (cwr_malloc_ctx_t *ctx, size_t size)
 }
 
 static const char unknown_error[] = "Unknown error";
+static const char llhttp_error[] = "llhttp error";
 static const char user_error[] = "User defined method error";
 static const char *internal_errors[] = {
     "OK",
@@ -190,8 +192,37 @@ static const char *internal_errors[] = {
     "Failed to parse URL",
     "Unreachable code reached"
 };
+static const char *user_errors[] = {
+    "OK",
+    "I/O Error. Reader threw an non 0 return.",
+    "I/O Error. Writer threw an non 0 return.",
+    "Invalid HTTP field",
+    "Invalid Resource Schema in WebSocket Connect",
+    "WebSocket URI cannot contain a fragment",
+    "Invalid WebSocket subprotocol value"
+};
+static const char *ws_errors[] = {
+    "OK",
+    "WS: Invalid HTTP statuscode during handshake.",
+    "WS: Want redirect.",
+    "WS: Invalid connection header value during handshake",
+    "WS: Invalid upgrade header value during handshake",
+    "WS: Invalid Sec-WebSocket-Accept header SHA1 hash during handshake",
+    "WS: Invalid protocol selected during handshake",
+    "WS: Reserved bit set in incoming frame",
+    "WS: Server has sent a masked frame",
+    "WS: Payload length overflow in incoming frame",
+    "WS: The fragments of one message is interleaved between the fragments of another message",
+    "WS: Received continuation frame while not currently receiving a fragmented message",
+    "WS: Received control frame with unset FIN",
+    "WS: Received unknown opcode",
+    "WS: Received control frame with length > 125",
+    "WS: Invalid UTF-8",
+    "WS: Connection state is not OPEN"
+};
 
 #include <openssl/err.h>
+#include <llhttp.h>
 
 int cwr_linkable_has_pending_write(cwr_linkable_t *link)
 {
@@ -216,7 +247,28 @@ const char *cwr_err_get_str(cwr_linkable_t *link)
         }
 
     case CWR_E_USER:
-        return user_error;
+        {
+            if ((link->io.err_code >= 0) && (link->io.err_code < (sizeof(user_errors) / sizeof(char *))))
+            {
+                return user_errors[link->io.err_code];
+            }
+            return unknown_error;
+        }
+
+    case CWR_E_UNDERLYING:
+        return unknown_error; // TODO: Underlying error
+
+    case CWR_E_WS:
+        {
+            if ((link->io.err_code >= 0) && (link->io.err_code < (sizeof(ws_errors) / sizeof(char *))))
+            {
+                return ws_errors[link->io.err_code];
+            }
+            return unknown_error;
+        }
+
+    case CWR_E_LLHTTP:
+        return llhttp_error;
 
     case CWR_E_UV:
         return uv_err_name(link->io.err_code);
@@ -264,6 +316,37 @@ void *cwr_buf_push_back (cwr_buf_t *buf, const char *src, size_t len)
     return sp; 
 }
 
+void *__attribute__((format(printf, 2, 3))) cwr_buf_printf (cwr_buf_t *buf, const char *fmt, ...)
+{
+    va_list ap;
+    int len;
+    char buff[256];
+
+    va_start(ap, fmt);
+    len = vsnprintf(buff, sizeof(buff), fmt, ap);
+    va_end(ap);
+    if (len < sizeof(buff))
+        return cwr_buf_push_back(buf, buff, len);
+
+    if (buf->size < (buf->len + len + 1))
+        if (!cwr_buf_resize(buf, buf->len + len + 1))
+            return NULL;
+    
+    char *sp = buf->base + buf->len;
+
+    va_start(ap, fmt);
+    vsnprintf(sp, buf->size - buf->len, fmt, ap);
+    va_end(ap);
+
+    buf->len += len;
+
+    return sp; 
+}
+
+void *cwr_buf_puts (cwr_buf_t *buf, const char *s)
+{
+    return cwr_buf_push_back(buf, s, strlen(s));
+}
 
 void *cwr_buf_push_front (cwr_buf_t *buf, const char *src, size_t len)
 {
