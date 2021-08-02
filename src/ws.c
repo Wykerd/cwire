@@ -76,7 +76,7 @@ int cwr__ws_header_includes (const char *needle, size_t needle_len, cwr_buf_t *h
             continue;
         }
 
-        if (!token_chars[header->base[i]])
+        if (!token_chars[(uint8_t)header->base[i]])
             return -1;
     }
     return (header->len - off == needle_len) && !strncasecmp(needle, header->base + off, header->len - off);
@@ -152,7 +152,7 @@ size_t cwr__ws_write_header (cwr_ws_t *ws, uint8_t opcode, char *frame, size_t l
     if (ws->client_mode)
     {
         frame[1] |= (1 << 7);
-        int r = RAND_bytes(&frame[off], 4);
+        int r = RAND_bytes((unsigned char *)&frame[off], 4);
         if (unlikely(!r))
             *((uint32_t *)&frame[off]) = rand(); // fallback to stdlib rand
         off += 4;
@@ -168,7 +168,7 @@ void cwr__ws_send_short_noq (cwr_ws_t *ws, uint8_t opcode, const void *data, uin
     size_t data_idx = cwr__ws_write_header(ws, opcode, frame, len, 1);
     memcpy(&frame[data_idx], data, len);
     if (ws->client_mode)
-        cwr__ws_mask(&frame[data_idx - 4], &frame[data_idx], len);
+        cwr__ws_mask((uint8_t *)&frame[data_idx - 4], (uint8_t *)&frame[data_idx], len);
 
     int r = ws->stream->io.writer(ws->stream, frame, (ws->client_mode ? 6 : 2) + len);
     if (r)
@@ -675,7 +675,7 @@ oom_shake:
     
     /* Generate a nonce to use as the Sec-WebSocket-Key */
     char bytes[16];
-    int r = RAND_bytes(bytes, 16);
+    int r = RAND_bytes((unsigned char *)bytes, 16);
     if (unlikely(!r))
     {
 err_ssl:
@@ -687,12 +687,12 @@ err_ssl:
         return CWR_E_SSL_ERR;
     }
     
-    cwr_base64_encode(bytes, 16, ws->key, 24, CWR_B64_MODE_NORMAL);
+    cwr_base64_encode(bytes, 16, (char *)ws->key, 24, CWR_B64_MODE_NORMAL);
     
     if (!cwr_buf_push_back(&buf, "Sec-WebSocket-Key: ", 19))
         goto oom_shake;
 
-    if (!cwr_buf_push_back(&buf, ws->key, 24))
+    if (!cwr_buf_push_back(&buf, (char *)ws->key, 24))
         goto oom_shake;
 
     /* Add user defined subprotocols */
@@ -707,7 +707,7 @@ err_ssl:
         {
             while (cur[0] != '\0')
             {
-                if (!token_chars[cur[0]])
+                if (!token_chars[(uint8_t)cur[0]])
                 {
                     cwr_free(ws->m_ctx, ws->host_name);
                     cwr_free(ws->m_ctx, ws->resource_name);
@@ -741,7 +741,7 @@ err_ssl:
             
             while (cur[0] != '\0')
             {
-                if (!token_chars[cur[0]])
+                if (!token_chars[(uint8_t)cur[0]])
                 {
                     cwr_free(ws->m_ctx, ws->host_name);
                     cwr_free(ws->m_ctx, ws->resource_name);
@@ -793,13 +793,13 @@ err_ssl:
     if (unlikely(!r))
         goto err_ssl;
 
-    char digest[SHA_DIGEST_LENGTH];
+    unsigned char digest[SHA_DIGEST_LENGTH];
 
     r = SHA1_Final(digest, &sha1);
     if (unlikely(!r))
         goto err_ssl;
 
-    cwr_base64_encode(digest, SHA_DIGEST_LENGTH, ws->key_hash, sizeof(ws->key_hash), CWR_B64_MODE_NORMAL);
+    cwr_base64_encode((char *)digest, SHA_DIGEST_LENGTH, (char *)ws->key_hash, sizeof(ws->key_hash), CWR_B64_MODE_NORMAL);
     /* End SHA1 hash generation */
 
     return CWR_E_OK;
@@ -1150,7 +1150,7 @@ int cwr_ws_send2 (cwr_ws_t *ws, const char *data, size_t len, uint8_t opcode, in
         return CWR_E_INTERNAL_OOM;
     }
     if (ws->client_mode)
-        cwr__ws_mask(&frame[data_idx - 4], &ws->write_queue.base[write_off], len);
+        cwr__ws_mask((uint8_t *)&frame[data_idx - 4], (uint8_t *)&ws->write_queue.base[write_off], len);
     data_idx += len;
     if (!cwr_buf_push_back(&ws->write_queue_len, (const char *)&data_idx, sizeof(size_t)))
     {

@@ -5,8 +5,7 @@
 static int cwr__tls_flush_wbio (cwr_tls_t *tls)
 {
     char buf[CWR_SSL_IO_BUF_SIZE];
-    int r = 0,
-        wr = 0;
+    int r = 0;
     ERR_clear_error();
     do
     {
@@ -30,8 +29,7 @@ static int cwr__tls_flush_wbio (cwr_tls_t *tls)
 
 static int cwr__tls_flush_enc_buf(cwr_tls_t *tls)
 {
-    int r = 0,
-        status;
+    int status;
 
     ERR_clear_error();
     while (tls->enc_buf.len > 0)
@@ -62,7 +60,6 @@ static int cwr__tls_flush_enc_buf(cwr_tls_t *tls)
 int cwr__tls_handshake(cwr_tls_t *tls)
 {
     int r = 0,
-        wr = 0,
         status = 0;
 
     ERR_clear_error();
@@ -214,6 +211,8 @@ static int cwr__tls_init_intr(cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr
     tls->rbio = cwr_crypto_bio_new(tls->m_ctx);
     tls->wbio = cwr_crypto_bio_new(tls->m_ctx);
     SSL_set_bio(tls->ssl, tls->rbio, tls->wbio);
+
+    return 0;
 }
 
 unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls, cwr_secure_ctx_t *sec_ctx)

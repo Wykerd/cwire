@@ -121,7 +121,7 @@ const char *cwr_err_get_str(cwr_linkable_t *link);
 
 void cwr_malloc_ctx_new_ex (cwr_malloc_ctx_t *ctx, const cwr_malloc_funcs_t *mf);
 void cwr_malloc_ctx_new (cwr_malloc_ctx_t *ctx);
-int cwr_malloc_ctx_set_limit (cwr_malloc_ctx_t *ctx, size_t limit);
+void cwr_malloc_ctx_set_limit (cwr_malloc_ctx_t *ctx, size_t limit);
 void cwr_malloc_ctx_dump_leaks (cwr_malloc_ctx_t *ctx);
 void *cwr_malloc (cwr_malloc_ctx_t *ctx, size_t size);
 void cwr_free (cwr_malloc_ctx_t *ctx, void *ptr);

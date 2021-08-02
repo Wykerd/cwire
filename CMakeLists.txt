@@ -52,6 +52,11 @@ target_link_libraries(cwire PUBLIC
     ${UV_LIBRARIES} 
 )
 
+target_compile_options(cwire PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall>
+)
+
 # DEMO
 
 add_executable(cwire-demo

@@ -41,7 +41,7 @@ unsigned long cwr_sec_ctx_ssl_ctx_use_certificate_chain_bio (SSL_CTX* context, B
     ERR_clear_error();
 
     X509_INFO *itmp;
-    int i, count = 0, type = X509_FILETYPE_PEM;
+    int i;
     STACK_OF(X509_INFO) *inf = PEM_X509_INFO_read_bio(cbio, NULL, NULL, NULL);
 
     if (!inf) {
@@ -187,7 +187,7 @@ unsigned long cwr_sec_ctx_add_cacert (cwr_secure_ctx_t *ctx, BIO *bio) {
     X509_STORE* cert_store = SSL_CTX_get_cert_store(ctx->ssl_ctx);
 
     X509* x509;
-    while (x509 = PEM_read_bio_X509_AUX(bio, NULL, cwr_crypto_no_password_cb, NULL)) {
+    while ((x509 = PEM_read_bio_X509_AUX(bio, NULL, cwr_crypto_no_password_cb, NULL))) {
         if (cert_store == root_cert_store) {
             cert_store = cwr_sec_ctx_new_root_cert_store(ctx->m_ctx, CWR_USE_OPENSSL_DEFAULT_STORE);
             if (cert_store == NULL)

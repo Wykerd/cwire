@@ -74,6 +74,8 @@ int cwr_sock_init (cwr_malloc_ctx_t *m_ctx, uv_loop_t *loop, cwr_sock_t *sock)
     sock->h_tcp.data = sock;
 
     sock->io.writer = cwr_sock_writer;
+
+    return 0;
 }
 
 static void cwr__sock_connect_cb (uv_connect_t *req, int status)

@@ -105,7 +105,7 @@ oom:
             
             while (cur[0] != '\0')
             {
-                if (!token_chars[cur[0]])
+                if (!token_chars[(unsigned char)cur[0]])
                 {
                     http->buffer.len = 0;
                     http->io.err_type = CWR_E_USER;

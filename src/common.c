@@ -149,7 +149,7 @@ void cwr_malloc_ctx_new (cwr_malloc_ctx_t *ctx)
     return cwr_malloc_ctx_new_ex(ctx, &def_malloc_funcs);
 }
 
-int cwr_malloc_ctx_set_limit (cwr_malloc_ctx_t *ctx, size_t limit)
+void cwr_malloc_ctx_set_limit (cwr_malloc_ctx_t *ctx, size_t limit)
 {
     ctx->ms.malloc_limit = limit;
 }
@@ -185,7 +185,6 @@ void *cwr_mallocz (cwr_malloc_ctx_t *ctx, size_t size)
 
 static const char unknown_error[] = "Unknown error";
 static const char llhttp_error[] = "llhttp error";
-static const char user_error[] = "User defined method error";
 static const char *internal_errors[] = {
     "OK",
     "Out of memory",
