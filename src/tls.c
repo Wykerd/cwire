@@ -264,10 +264,10 @@ int cwr_tls_connect_with_sni (cwr_tls_t *tls, const char *host)
 {
     SSL_set_connect_state(tls->ssl);
     int r = SSL_set_tlsext_host_name(tls->ssl, host);
-    if (r)
+    if (!r)
     {
-        tls->io.err_code = CWR_E_SSL_ERR;
-        tls->io.err_type = ERR_get_error();
+        tls->io.err_type = CWR_E_SSL_ERR;
+        tls->io.err_code = ERR_get_error();
         return CWR_E_SSL_ERR;
     };
     return cwr__tls_handshake(tls);
