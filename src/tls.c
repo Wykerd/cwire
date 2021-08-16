@@ -260,6 +260,12 @@ int cwr_tls_connect(cwr_tls_t *tls)
     return cwr__tls_handshake(tls);
 }
 
+int cwr_tls_accept(cwr_tls_t *tls)
+{
+    SSL_set_accept_state(tls->ssl);
+    return 0;
+}
+
 int cwr_tls_connect_with_sni (cwr_tls_t *tls, const char *host)
 {
     SSL_set_connect_state(tls->ssl);

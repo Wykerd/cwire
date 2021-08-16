@@ -37,6 +37,7 @@ unsigned long cwr_tls_init_ex (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cw
 unsigned long cwr_tls_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *sock, cwr_tls_t *tls);
 int cwr_tls_write (cwr_tls_t *tls, const void *buf, size_t len);
 int cwr_tls_connect (cwr_tls_t *tls);
+int cwr_tls_accept (cwr_tls_t *tls);
 int cwr_tls_connect_with_sni (cwr_tls_t *tls, const char *host);
 int cwr_tls_shutdown (cwr_tls_t *tls);
 /**

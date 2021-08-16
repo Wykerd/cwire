@@ -157,9 +157,9 @@ void cwr_malloc_ctx_set_limit (cwr_malloc_ctx_t *ctx, size_t limit)
 void cwr_malloc_ctx_dump_leaks (cwr_malloc_ctx_t *ctx)
 {
     if (ctx->ms.malloc_count > 0)
-        printf("Memory leak: %"PRIu64" bytes lost in %"PRIu64" block%s\n",
+        printf("Memory leak: %"PRIu64" bytes lost in %"PRIu64" block%c\n",
             (uint64_t)(ctx->ms.malloc_size),
-            (uint64_t)(ctx->ms.malloc_count), &"s"[ctx->ms.malloc_count > 1]);
+            (uint64_t)(ctx->ms.malloc_count), ctx->ms.malloc_count > 1 ? 's' : '\0');
 }
 
 void *cwr_malloc (cwr_malloc_ctx_t *ctx, size_t size) 

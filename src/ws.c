@@ -634,6 +634,27 @@ int cwr_ws_init (cwr_malloc_ctx_t *m_ctx, cwr_linkable_t *stream, cwr_ws_t *ws)
     return 0;
 }
 
+void cwr_ws_reset(cwr_ws_t *ws)
+{
+    ws->fin = 1;
+    ws->write_queue.len = 0;
+    ws->write_queue_len.len = 0;
+    ws->buffer.len = 0;
+    llhttp_settings_init(&ws->http_parser_settings);
+    ws->io.err_code = 0;
+    ws->io.err_type = 0;
+    ws->is_secure = 0;
+    ws->intr_state = CWR_WS_S_NEW;
+    ws->opcode = 0;
+    ws->opcode_cont = 0;
+    ws->mask = 0;
+    ws->payload_len = 0;
+    ws->client_mode = 0;
+    ws->is_fragmented = 0;
+    ws->requested_close = 0;
+    ws->state = CWR_WS_INIT;
+}
+
 static
 int cwr__ws_handshake (cwr_ws_t *ws)
 {

@@ -1,6 +1,6 @@
 #include <cwire/socket.h>
 #include <cwire/url.h>
-#include <cwire/net.h>
+#include <cwire/dns.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -147,20 +147,13 @@ cleanup:
     cwr_free(sock->m_ctx, req);
 }
 
-int cwr_sock_connect_host (cwr_sock_t *sock, const char *hostname, const char *port) 
+typedef void (*cwr__sock_resolve_cb)(cwr_sock_t *sock, struct sockaddr* res);
+
+static
+int cwr__sock_resolve (cwr_sock_t *sock, const char *hostname, const char *port, 
+                       uv_getaddrinfo_cb resolve_cb, cwr__sock_resolve_cb sync_resolve_cb)
 {
-    uv_getaddrinfo_t *addrinfo_req = cwr_malloc(sock->m_ctx, sizeof(uv_getaddrinfo_t));
-
-    addrinfo_req->data = sock;
-
-    struct addrinfo hints;
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-
-    int n = cwr_net_is_numeric_host_v(hostname);
+    int n = cwr_dns_is_numeric_host_v(hostname);
     if (n)
     {
         int r;
@@ -170,7 +163,8 @@ int cwr_sock_connect_host (cwr_sock_t *sock, const char *hostname, const char *p
             {
                 struct sockaddr_in dst;
                 r = uv_ip4_addr(hostname, atoi(port), &dst);
-                cwr_sock_connect(sock, (struct sockaddr *)&dst);
+                if (!r)
+                    sync_resolve_cb(sock, (struct sockaddr *)&dst);
             }
             break;
         
@@ -178,7 +172,8 @@ int cwr_sock_connect_host (cwr_sock_t *sock, const char *hostname, const char *p
             {
                 struct sockaddr_in6 dst;
                 r = uv_ip6_addr(hostname, atoi(port), &dst);
-                cwr_sock_connect(sock, (struct sockaddr *)&dst);
+                if (!r)
+                    sync_resolve_cb(sock, (struct sockaddr *)&dst);
             }
             break;
 
@@ -200,10 +195,19 @@ int cwr_sock_connect_host (cwr_sock_t *sock, const char *hostname, const char *p
         return 0;
     }
 
+    uv_getaddrinfo_t *addrinfo_req = cwr_malloc(sock->m_ctx, sizeof(uv_getaddrinfo_t));
+    addrinfo_req->data = sock;
+
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
     int r = uv_getaddrinfo(
         sock->loop,
         addrinfo_req,
-        cwr__sock_getaddrinfo_cb,
+        resolve_cb,
         hostname, port,
         &hints    
     );
@@ -218,7 +222,15 @@ int cwr_sock_connect_host (cwr_sock_t *sock, const char *hostname, const char *p
     return 0;
 }
 
-int cwr_sock_connect_url (cwr_sock_t *sock, const char *url, size_t len)
+int cwr_sock_connect_host (cwr_sock_t *sock, const char *hostname, const char *port) 
+{
+    return cwr__sock_resolve(sock, hostname, port, cwr__sock_getaddrinfo_cb, cwr_sock_connect);
+}
+
+typedef int (*cwr__sock_host_cb)(cwr_sock_t *sock, const char *hostname, const char *port);
+
+static
+int cwr__sock_url (cwr_sock_t *sock, const char *url, size_t len, cwr__sock_host_cb parse_cb)
 {
     struct http_parser_url u;
     http_parser_url_init(&u);
@@ -297,12 +309,119 @@ int cwr_sock_connect_url (cwr_sock_t *sock, const char *url, size_t len)
     }
     memcpy(host, url + u.field_data[UF_HOST].off, u.field_data[UF_HOST].len);
 
-    int r = cwr_sock_connect_host(sock, host, port);
+    int r = parse_cb(sock, host, port);
 
     cwr_free(sock->m_ctx, port);
     cwr_free(sock->m_ctx, host);
 
     return r;
+}
+
+int cwr_sock_connect_url (cwr_sock_t *sock, const char *url, size_t len)
+{
+    return cwr__sock_url(sock, url, len, cwr_sock_connect_host);
+}
+
+int cwr_sock_bind (cwr_sock_t *sock, struct sockaddr *addr, unsigned int flags)
+{
+    int r = uv_tcp_bind(&sock->h_tcp, addr, flags);
+
+    if (r != 0)
+    {
+        sock->io.err_type = CWR_E_UV;
+        sock->io.err_code = r;
+        return r;
+    }
+
+    return 0;
+}
+
+int cwr_sock_bind2 (cwr_sock_t *sock, struct sockaddr *addr)
+{
+    return cwr_sock_bind(sock, addr, 0);
+}
+
+static void cwr__sock_getaddrinfo_bind_cb (uv_getaddrinfo_t *req, int status, struct addrinfo* res)
+{
+    cwr_sock_t *sock = req->data;
+
+    if (status != 0)
+    {
+        sock->io.err_type = CWR_E_UV;
+        sock->io.err_code = status;
+        if (sock->io.on_error)
+            sock->io.on_error(sock);
+        goto cleanup;
+    }
+
+    int r = cwr_sock_bind2(sock, res->ai_addr);
+
+    if (r != 0)
+    {
+        if (sock->io.on_error)
+            sock->io.on_error(sock);
+    }
+
+cleanup:
+    uv_freeaddrinfo(res);
+    cwr_free(sock->m_ctx, req);
+}
+
+int cwr_sock_bind_host (cwr_sock_t *sock, const char *hostname, const char *port)
+{
+    return cwr__sock_resolve(sock, hostname, port, cwr__sock_getaddrinfo_bind_cb, cwr_sock_bind2);
+}
+
+int cwr_sock_bind_url (cwr_sock_t *sock, const char *url, size_t len)
+{
+    return cwr__sock_url(sock, url, len, cwr_sock_bind_host);
+}
+
+static
+void cwr__sock_conn_cb (uv_stream_t *server, int status)
+{
+    cwr_sock_t *sock = server->data;
+
+    if (status != 0)
+    {
+        sock->io.err_type = CWR_E_UV;
+        sock->io.err_code = status;
+        if (sock->io.on_error)
+            sock->io.on_error(sock);
+        return;
+    };
+
+    sock->on_new_conn(sock);
+}
+
+int cwr_sock_listen (cwr_sock_t *sock, int backlog, cwr_sock_cb cb)
+{
+    int r = uv_listen((uv_stream_t *)&sock->h_tcp, backlog, cwr__sock_conn_cb);
+
+    sock->on_new_conn = cb;
+
+    if (r != 0)
+    {
+        sock->io.err_type = CWR_E_UV;
+        sock->io.err_code = r;
+        return r;
+    }
+
+    return 0;
+}
+
+int cwr_sock_accept (cwr_sock_t *server, cwr_sock_t *client)
+{
+    int r = uv_accept((uv_stream_t *)&server->h_tcp, (uv_stream_t *)&client->h_tcp);
+
+    if (r != 0)
+    {
+        server->io.err_type = CWR_E_UV;
+        server->io.err_code = r;
+        return r;
+    }
+
+    return 0;
 }
 
 static void cwr__sock_close_cb (uv_handle_t *handle) 

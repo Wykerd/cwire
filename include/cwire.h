@@ -2,7 +2,7 @@
 #define CWIRE_H
 
 #include "./cwire/common.h"
-#include "./cwire/net.h"
+#include "./cwire/dns.h"
 #include "./cwire/b64.h"
 #include "./cwire/socket.h"
 #include "./cwire/tls.h"

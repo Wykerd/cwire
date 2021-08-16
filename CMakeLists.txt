@@ -8,8 +8,9 @@ option(BUILD_SHARED_LIBS "Build shared libraries (rather than static ones)" ON)
 
 add_library(cwire
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/net.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/b64.c
+    # DNS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/dns.c
     # llhttp
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/src/api.c
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/src/http.c
