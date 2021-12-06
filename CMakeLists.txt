@@ -35,13 +35,11 @@ set_target_properties(cwire PROPERTIES
 )
 
 find_package(OpenSSL REQUIRED)
-find_package(UV REQUIRED)
+add_subdirectory(deps/libuv)
 
 target_include_directories(cwire PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include 
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/llhttp/include
-    
-    ${UV_INCLUDE_DIR}
     ${OPENSSL_INCLUDE_DIR}
 )
 
@@ -50,7 +48,7 @@ target_link_libraries(cwire PUBLIC
     OpenSSL::SSL 
     OpenSSL::Crypto 
     # Event Loop
-    ${UV_LIBRARIES} 
+    uv_a
 )
 
 target_compile_options(cwire PRIVATE
