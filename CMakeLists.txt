@@ -32,6 +32,7 @@ add_library(cwire
 set_target_properties(cwire PROPERTIES
     C_STANDARD 11
     C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
 )
 
 find_package(OpenSSL REQUIRED)
